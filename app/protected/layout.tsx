@@ -23,7 +23,7 @@ export default function ProtectedLayout({
               </div>
             </div>
             {!hasEnvVars ? (
-              <EnvVarWarning />
+              <EnvWarning />
             ) : (
               <Suspense>
                 <AuthButton />
