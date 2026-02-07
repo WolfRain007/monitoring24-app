@@ -21,13 +21,9 @@ export default function Home() {
                 <DeployButton />
               </div>
             </div>
-            {!hasEnvVars ? (
-              <EnvWarning />
-            ) : (
-              <Suspense>
-                <AuthButton />
-              </Suspense>
-            )}
+            <Suspense>
+  <AuthButton />
+</Suspense>
           </div>
         </nav>
         <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
