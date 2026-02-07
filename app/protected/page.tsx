@@ -18,6 +18,13 @@ export default async function ProtectedPage() {
         Добро пожаловать 👋
       </h1>
 
-    <p className="mt-4 text-gray-600">
-  Вы вошли как: <b>{user.email}</b>
-</p>
+      <p className="mt-4 text-gray-600">
+        Вы вошли как: <b>{user.email}</b>
+      </p>
+
+      <p className="mt-6">
+        Это защищённая страница вашего приложения.
+      </p>
+    </div>
+  );
+}
