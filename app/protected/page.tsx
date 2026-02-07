@@ -1,9 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export const revalidate = 0;
-export const fetchCache = "force-no-store";
-
 export default async function ProtectedPage() {
   const supabase = await createClient();
 
