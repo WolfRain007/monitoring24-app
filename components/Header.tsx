@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
-export const revalidate = 0;
-export const fetchCache = "force-no-store";
-
 export default async function Header() {
   const supabase = await createClient();
   const {
