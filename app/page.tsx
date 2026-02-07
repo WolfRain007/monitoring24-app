@@ -1,3 +1,4 @@
+'use client';
 import { DeployButton } from "@/components/deploy-button";
 import { EnvWarning } from "@/components/env-warning";
 import { AuthButton } from "@/components/auth-button";
