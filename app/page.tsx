@@ -22,7 +22,7 @@ export default function Home() {
               </div>
             </div>
             {!hasEnvVars ? (
-              <EnvVarWarning />
+              <EnvWarning />
             ) : (
               <Suspense>
                 <AuthButton />
