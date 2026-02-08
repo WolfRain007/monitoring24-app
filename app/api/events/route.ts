@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !serviceKey) {
+  throw new Error("Supabase env variables are missing");
+}
+
+const supabase = createClient(supabaseUrl, serviceKey);
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-
     const { data, error } = await supabase
       .from("events")
       .select(`
@@ -27,9 +34,9 @@ export async function GET() {
     }
 
     return NextResponse.json(data ?? []);
-  } catch {
+  } catch (e: any) {
     return NextResponse.json(
-      { error: "Server error" },
+      { error: e.message ?? "Server error" },
       { status: 500 }
     );
   }
