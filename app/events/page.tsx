@@ -1,7 +1,16 @@
+import { headers } from "next/headers";
+
 async function fetchEvents() {
-  const res = await fetch("/api/events", {
-    cache: "no-store",
-  });
+  const headersList = headers();
+  const host = headersList.get("host");
+
+  const protocol =
+    host?.includes("localhost") ? "http" : "https";
+
+  const res = await fetch(
+    `${protocol}://${host}/api/events`,
+    { cache: "no-store" }
+  );
 
   if (!res.ok) {
     throw new Error("Failed to load events");
