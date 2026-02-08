@@ -1,4 +1,4 @@
-nname: RSS Ingest Cron
+name: RSS Ingest Cron
 
 on:
   workflow_dispatch:
@@ -8,7 +8,6 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-
     steps:
       - name: Call RSS ingest endpoint
         run: |
