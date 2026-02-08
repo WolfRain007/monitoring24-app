@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { fetchRssItems } from "@/lib/rss/parse";
 import { saveRssItems } from "@/lib/rss/save";
