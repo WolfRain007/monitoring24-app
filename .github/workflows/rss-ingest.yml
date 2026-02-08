@@ -14,4 +14,4 @@ jobs:
         run: |
           echo "Calling RSS ingest endpoint..."
           echo "URL: ${{ secrets.RSS_INGEST_URL }}"
-          curl -v -X POST "https://monitoring24-app-xjs-kj3k3b9-wolfrain007s-projects.vercel.app/api/rss/ingest"
+          curl -v -X POST "https://monitoring24-app-xjs.vercel.app/api/rss/ingest"
