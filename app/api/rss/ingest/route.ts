@@ -1,27 +1,49 @@
-export const runtime = "nodejs";
-
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { fetchRssItems } from "@/lib/rss/parse";
-import { saveRssItems } from "@/lib/rss/save";
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase env variables are missing");
+  }
+
+  return createClient(url, key);
+}
 
 export async function POST() {
-  console.log("RSS INGEST CRON STARTED");
-
   try {
-    const items = await fetchRssItems();
-    console.log("Fetched items:", items.length);
+    const supabase = getSupabase();
 
-    await saveRssItems(items);
-    console.log("Saved items");
+    console.log("RSS INGEST START");
 
-    return NextResponse.json({
-      ok: true,
-      count: items.length,
+    // пример тестовой вставки — УДАЛИ, если у тебя есть своя логика
+    const { error } = await supabase.from("news_items").insert({
+      source: "test",
+      url: "https://example.com",
+      published_at: new Date().toISOString(),
+      source_type: "rss",
     });
-  } catch (e: any) {
-    console.error("RSS INGEST ERROR:", e);
+
+    if (error) {
+      console.error("Insert error:", error.message);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    console.log("RSS INGEST DONE");
+
     return NextResponse.json(
-      { error: e.message },
+      { status: "ok" },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("RSS INGEST FAIL:", err);
+    return NextResponse.json(
+      { error: err.message || "Internal server error" },
       { status: 500 }
     );
   }
