@@ -1,9 +1,9 @@
-name: RSS Ingest Cron
+nname: RSS Ingest Cron
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *" # каждые 15 минут
+    - cron: "*/15 * * * *"
 
 jobs:
   ingest:
@@ -16,4 +16,5 @@ jobs:
           curl -v -X POST \
             -H "User-Agent: GitHubActions/1.0" \
             -H "Content-Type: application/json" \
+            -d '{}' \
             https://monitoring24-app-xjs.vercel.app/api/rss/ingest
