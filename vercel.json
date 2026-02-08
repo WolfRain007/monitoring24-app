@@ -1,8 +1,8 @@
-{
+{{
   "crons": [
     {
       "path": "/api/rss/ingest",
-      "schedule": "*/5 * * * *",
+      "schedule": "*/1 * * * *",
       "method": "POST"
     }
   ]
