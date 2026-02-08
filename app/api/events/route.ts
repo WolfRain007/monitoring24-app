@@ -1,30 +1,27 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !serviceKey) {
-  throw new Error("Supabase env variables are missing");
+  if (!url || !key) {
+    throw new Error("Supabase env variables are missing");
+  }
+
+  return createClient(url, key);
 }
 
-const supabase = createClient(supabaseUrl, serviceKey);
-
-export async function GET() {
+export async function POST(req: Request) {
   try {
+    const supabase = getSupabase();
+    const body = await req.json();
+
     const { data, error } = await supabase
       .from("events")
-      .select(`
-        id,
-        title,
-        description,
-        started_at,
-        cities (
-          name,
-          country
-        )
-      `)
-      .order("started_at", { ascending: false });
+      .insert(body)
+      .select()
+      .single();
 
     if (error) {
       return NextResponse.json(
@@ -33,10 +30,10 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(data ?? []);
-  } catch (e: any) {
+    return NextResponse.json(data, { status: 200 });
+  } catch (err: any) {
     return NextResponse.json(
-      { error: e.message ?? "Server error" },
+      { error: err.message || "Internal server error" },
       { status: 500 }
     );
   }
