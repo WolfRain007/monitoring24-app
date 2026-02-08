@@ -3,7 +3,7 @@ name: RSS Ingest Cron
 on:
   schedule:
     - cron: "*/5 * * * *"   # каждые 5 минут
-  workflow_dispatch:        # ручной запуск кнопкой
+  workflow_dispatch:       # ручной запуск
 
 jobs:
   ingest:
@@ -12,4 +12,6 @@ jobs:
     steps:
       - name: Call RSS ingest endpoint
         run: |
-          curl -X POST "${{ secrets.RSS_INGEST_URL }}"
+          echo "Calling RSS ingest endpoint..."
+          echo "URL: ${{ secrets.RSS_INGEST_URL }}"
+          curl -v -X POST "${{ secrets.RSS_INGEST_URL }}"
