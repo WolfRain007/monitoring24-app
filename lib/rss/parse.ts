@@ -1,7 +1,12 @@
 import Parser from "rss-parser";
 import { RSS_SOURCES } from "./sources";
 
-const parser = new Parser();
+const parser = new Parser({
+  headers: {
+    "User-Agent":
+      "Monitoring24/1.0 (+https://monitoring24.info)",
+  },
+});
 
 export type ParsedRssItem = {
   title: string;
