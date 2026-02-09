@@ -10,10 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call RSS ingest endpoint
+        env:
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
         run: |
           echo "Calling RSS ingest endpoint..."
-          curl -v -X POST \
+          curl -v \
             -H "User-Agent: GitHubActions/1.0" \
             -H "Content-Type: application/json" \
+            -H "x-ingest-secret: ${INGEST_SECRET}" \
             -d '{}' \
             https://monitoring24-app-xjs.vercel.app/api/rss/ingest
