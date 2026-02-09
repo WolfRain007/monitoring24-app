@@ -1,4 +1,4 @@
-iimport { updateSession } from "@/lib/supabase/proxy";
+import { updateSession } from "@/lib/supabase/proxy";
 import { type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
@@ -7,7 +7,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // ВАЖНО: исключаем /api, чтобы API-роуты не перехватывались middleware
+    // исключаем /api, чтобы API роуты не перехватывались proxy middleware
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
