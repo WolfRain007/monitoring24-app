@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ВАЖНО: не трогаем API вообще
+  // ЖЁСТКО пропускаем все API-роуты
   if (pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
@@ -14,6 +14,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    // матчим всё, но API пропускаем внутри proxy()
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
