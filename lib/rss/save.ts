@@ -19,6 +19,8 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     published_at: item.published_at ?? null,
     source: item.source_title,
     source_type: "rss",
+    source_id: item.source_id,
+    lang: item.lang,
   }));
 
   const { error } = await supabase
