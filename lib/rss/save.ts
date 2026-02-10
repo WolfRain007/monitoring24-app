@@ -1,12 +1,13 @@
+// lib/rss/save.ts
 import { createClient } from "@supabase/supabase-js";
 import type { ParsedRssItem } from "./parse";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!supabaseUrl || !serviceKey) {
   throw new Error(
-    "Supabase env variables are missing (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)"
+    "Missing env: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY"
   );
 }
 
@@ -23,11 +24,14 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     lang: item.lang,
   }));
 
+  // ВАЖНО: без ignoreDuplicates — чтобы при конфликте url обновлялись поля
   const { error } = await supabase
     .from("news_items")
-    .upsert(rows, { onConflict: "url", ignoreDuplicates: true });
+    .upsert(rows, { onConflict: "url" });
 
-  if (error) throw new Error(`Supabase upsert error: ${error.message}`);
+  if (error) {
+    throw new Error(`Supabase upsert error: ${error.message}`);
+  }
 
   return { attempted: rows.length };
 }
