@@ -2,7 +2,7 @@ export type RssSource = {
   id: string;
   title: string;
   url: string;
-  language?: string;
+  language: "ru" | "en";
 };
 
 export const RSS_SOURCES: RssSource[] = [
