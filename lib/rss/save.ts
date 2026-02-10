@@ -6,9 +6,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!supabaseUrl || !serviceKey) {
-  throw new Error(
-    "Missing env: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY"
-  );
+  throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
 }
 
 const supabase = createClient(supabaseUrl, serviceKey);
@@ -24,14 +22,12 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     lang: item.lang,
   }));
 
-  // ВАЖНО: без ignoreDuplicates — чтобы при конфликте url обновлялись поля
+  // ВАЖНО: без ignoreDuplicates — при конфликте по url данные будут обновляться
   const { error } = await supabase
     .from("news_items")
     .upsert(rows, { onConflict: "url" });
 
-  if (error) {
-    throw new Error(`Supabase upsert error: ${error.message}`);
-  }
+  if (error) throw new Error(`Supabase upsert error: ${error.message}`);
 
   return { attempted: rows.length };
 }
