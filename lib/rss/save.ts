@@ -1,6 +1,7 @@
 // lib/rss/save.ts
 import { createClient } from "@supabase/supabase-js";
 import type { ParsedRssItem } from "./parse";
+import { normalizeUrl } from "./normalizeUrl";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -28,17 +29,23 @@ type SaveReport = {
 };
 
 export async function saveRssItems(items: ParsedRssItem[]) {
-  const rows = items.map((item) => ({
-    title: item.title,
-    url: item.link,
-    published_at: item.published_at ?? null,
-    source: item.source_title,
-    source_type: "rss",
-    source_id: item.source_id,
-    lang: item.lang,
-  }));
+  // 1) строим rows сразу с нормализованным URL
+  const rows = items.map((item) => {
+    const norm = normalizeUrl(item.link);
 
-  // 1) breakdown по источникам (по входным данным)
+    return {
+      title: item.title,
+      url: norm, // хранить уже нормализованный url — проще и чище
+      url_norm: norm, // ключ дедупликации/уникальности
+      published_at: item.published_at ?? null,
+      source: item.source_title,
+      source_type: "rss",
+      source_id: item.source_id,
+      lang: item.lang,
+    };
+  });
+
+  // 2) breakdown по источникам по входным данным
   const by_source: SaveReport["by_source"] = {};
   for (const it of items) {
     const k = it.source_id;
@@ -46,38 +53,40 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     by_source[k].attempted++;
   }
 
-  // 2) Узнаём какие URL уже есть в БД (оценка insert/update)
-  // Важно: supabase .in() имеет лимиты по длине запроса, поэтому батчим.
-  const urls = rows.map((r) => r.url);
+  // 3) precheck существующих по url_norm (а не по url)
+  const norms = rows.map((r) => r.url_norm);
   const existing = new Set<string>();
 
-  const BATCH = 200; // безопасный размер
-  for (let i = 0; i < urls.length; i += BATCH) {
-    const chunk = urls.slice(i, i + BATCH);
+  const BATCH = 200;
+  for (let i = 0; i < norms.length; i += BATCH) {
+    const chunk = norms.slice(i, i + BATCH);
+
     const { data, error } = await supabase
       .from("news_items")
-      .select("url")
-      .in("url", chunk);
+      .select("url_norm")
+      .in("url_norm", chunk);
 
     if (error) throw new Error(`Supabase precheck error: ${error.message}`);
-    for (const r of data ?? []) existing.add(r.url);
+
+    for (const r of data ?? []) existing.add(r.url_norm);
   }
 
-  // считаем existing по источникам
+  // считаем existing по источникам (через нормализованный url)
   for (const it of items) {
-    if (existing.has(it.link)) {
+    const norm = normalizeUrl(it.link);
+    if (existing.has(norm)) {
       by_source[it.source_id].existing_in_db++;
     }
   }
 
-  // 3) Сам upsert (обновляет поля при дубле url)
+  // 4) UPSERT по url_norm (главное изменение)
   const { error } = await supabase
     .from("news_items")
-    .upsert(rows, { onConflict: "url" });
+    .upsert(rows, { onConflict: "url_norm" });
 
   if (error) throw new Error(`Supabase upsert error: ${error.message}`);
 
-  // 4) Финальные числа (оценочные, но полезные)
+  // 5) метрики (оценочные, но уже корректные относительно нормализации)
   const existing_in_db = existing.size;
   const attempted = rows.length;
   const would_insert = attempted - existing_in_db;
