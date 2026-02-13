@@ -22,8 +22,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // ВАЖНО: теперь fetchRssItems возвращает { items, stats_by_source }
     const { items, stats_by_source } = await fetchRssItems();
+
+    const rss_stats_total = Object.values(stats_by_source).reduce(
+      (acc, s) => {
+        acc.total_items += s.total_items ?? 0;
+        acc.kept += s.kept ?? 0;
+        acc.skipped += s.skipped ?? 0;
+        acc.badDate += s.badDate ?? 0;
+        acc.ms += s.ms ?? 0;
+        return acc;
+      },
+      { total_items: 0, kept: 0, skipped: 0, badDate: 0, ms: 0 }
+    );
 
     // 1) RPC нормализации
     const urls = items.map((it) => it.link);
@@ -57,16 +68,16 @@ export async function POST(req: Request) {
 
     const unique = [...byNorm.values()];
 
-    // 3) Сохранение
+    // 3) Сохранение (возвращает и would_*, и inserted/updated)
     const report = await saveRssItems(unique);
 
-    // 4) Возвращаем статистику в JSON (теперь будет видно в GitHub Actions)
     return NextResponse.json({
       ok: true,
       fetched: items.length,
       unique: unique.length,
       skipped_no_norm,
       rss_stats: stats_by_source,
+      rss_stats_total,
       saved: report,
     });
   } catch (e) {
