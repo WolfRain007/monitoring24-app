@@ -1,7 +1,6 @@
 // lib/rss/save.ts
 import { createClient } from "@supabase/supabase-js";
 import type { ParsedRssItem } from "./parse";
-import { normalizeUrl } from "./normalizeUrl";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -24,19 +23,17 @@ type SaveReport = {
 };
 
 export async function saveRssItems(items: ParsedRssItem[]) {
-  // 1) В БД пишем url (лучше чистый, чтобы таблица выглядела аккуратно)
-  const rows = items.map((item) => {
-    const cleanUrl = normalizeUrl(item.link);
-    return {
-      title: item.title,
-      url: cleanUrl, // url_norm триггер выставит сам
-      published_at: item.published_at ?? null,
-      source: item.source_title,
-      source_type: "rss",
-      source_id: item.source_id,
-      lang: item.lang,
-    };
-  });
+  // 1) В БД пишем RAW url (как пришло из RSS)
+  const rows = items.map((item) => ({
+    title: item.title,
+    url: item.link, // raw
+    // url_norm НЕ отправляем: его ставит триггер
+    published_at: item.published_at ?? null,
+    source: item.source_title,
+    source_type: "rss",
+    source_id: item.source_id,
+    lang: item.lang,
+  }));
 
   // 2) статистика по источникам
   const by_source: SaveReport["by_source"] = {};
@@ -46,7 +43,7 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     by_source[k].attempted++;
   }
 
-  // 3) Получаем "истинный" url_norm для каждого url через RPC
+  // 3) Получаем "истинный" url_norm для каждого raw url через RPC
   const urls = rows.map((r) => r.url);
   const BATCH = 200;
 
@@ -83,14 +80,14 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     for (const r of data ?? []) existing.add(r.url_norm);
   }
 
-  // existing по источникам считаем также через истинный url_norm
+  // existing по источникам
   for (const it of items) {
-    const cleanUrl = normalizeUrl(it.link);
-    const norm = urlToNorm.get(cleanUrl);
+    const norm = urlToNorm.get(it.link);
     if (norm && existing.has(norm)) by_source[it.source_id].existing_in_db++;
   }
 
-  // 5) UPSERT: конфликт по url_norm (уникальность гарантирована индексом)
+  // 5) UPSERT: конфликт по url_norm
+  // Важно: для onConflict по колонке нужен UNIQUE индекс по url_norm (он у тебя уже есть)
   const { error } = await supabase
     .from("news_items")
     .upsert(rows, { onConflict: "url_norm" });
