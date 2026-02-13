@@ -24,12 +24,12 @@ type SaveReport = {
 };
 
 export async function saveRssItems(items: ParsedRssItem[]) {
+  // 1) В БД пишем url (лучше чистый, чтобы таблица выглядела аккуратно)
   const rows = items.map((item) => {
-    const norm = normalizeUrl(item.link);
+    const cleanUrl = normalizeUrl(item.link);
     return {
       title: item.title,
-      url: norm,
-      url_norm: norm,
+      url: cleanUrl, // url_norm триггер выставит сам
       published_at: item.published_at ?? null,
       source: item.source_title,
       source_type: "rss",
@@ -38,6 +38,7 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     };
   });
 
+  // 2) статистика по источникам
   const by_source: SaveReport["by_source"] = {};
   for (const it of items) {
     const k = it.source_id;
@@ -45,26 +46,51 @@ export async function saveRssItems(items: ParsedRssItem[]) {
     by_source[k].attempted++;
   }
 
-  const norms = rows.map((r) => r.url_norm);
+  // 3) Получаем "истинный" url_norm для каждого url через RPC
+  const urls = rows.map((r) => r.url);
+  const BATCH = 200;
+
+  const urlToNorm = new Map<string, string>();
+
+  for (let i = 0; i < urls.length; i += BATCH) {
+    const chunk = urls.slice(i, i + BATCH);
+
+    const { data, error } = await supabase.rpc("normalize_url_pg_many", { urls: chunk });
+    if (error) throw new Error(`Supabase RPC normalize_url_pg_many error: ${error.message}`);
+
+    for (const r of data ?? []) {
+      if (r?.url && r?.url_norm) urlToNorm.set(r.url, r.url_norm);
+    }
+  }
+
+  // 4) precheck существующих по url_norm
+  const norms = urls
+    .map((u) => urlToNorm.get(u))
+    .filter((x): x is string => typeof x === "string" && x.length > 0);
+
   const existing = new Set<string>();
 
-  const BATCH = 200;
   for (let i = 0; i < norms.length; i += BATCH) {
     const chunk = norms.slice(i, i + BATCH);
+
     const { data, error } = await supabase
       .from("news_items")
       .select("url_norm")
       .in("url_norm", chunk);
 
     if (error) throw new Error(`Supabase precheck error: ${error.message}`);
+
     for (const r of data ?? []) existing.add(r.url_norm);
   }
 
+  // existing по источникам считаем также через истинный url_norm
   for (const it of items) {
-    const norm = normalizeUrl(it.link);
-    if (existing.has(norm)) by_source[it.source_id].existing_in_db++;
+    const cleanUrl = normalizeUrl(it.link);
+    const norm = urlToNorm.get(cleanUrl);
+    if (norm && existing.has(norm)) by_source[it.source_id].existing_in_db++;
   }
 
+  // 5) UPSERT: конфликт по url_norm (уникальность гарантирована индексом)
   const { error } = await supabase
     .from("news_items")
     .upsert(rows, { onConflict: "url_norm" });
