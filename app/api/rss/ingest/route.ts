@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { fetchRssItems } from "@/lib/rss/parse";
 import { saveRssItems, type IngestItem } from "@/lib/rss/save";
 import { createClient } from "@supabase/supabase-js";
-import { isSportsItem } from "@/lib/rss/filter";
+import { shouldDrop, type DropReason } from "@/lib/rss/filter";
 
 export const runtime = "nodejs";
 
@@ -25,9 +25,21 @@ export async function POST(req: Request) {
 
     const { items, stats_by_source } = await fetchRssItems();
 
-    // ====== NEW: фильтрация спорта (ENFORCE) ======
-    const kept_items = items.filter((it) => !isSportsItem(it));
-    const dropped_sports = items.length - kept_items.length;
+    // ====== ENFORCE FILTER (sports/culture/...) ======
+    const dropStats: Record<string, number> = {};
+    const kept_items = [];
+
+    for (const it of items) {
+      const { drop, reason } = shouldDrop(it);
+      if (drop) {
+        const key = (reason ?? "unknown") satisfies DropReason | "unknown";
+        dropStats[key] = (dropStats[key] ?? 0) + 1;
+        continue;
+      }
+      kept_items.push(it);
+    }
+
+    const dropped_total = items.length - kept_items.length;
 
     const rss_stats_total = Object.values(stats_by_source).reduce(
       (acc, s) => {
@@ -41,7 +53,7 @@ export async function POST(req: Request) {
       { total_items: 0, kept: 0, skipped: 0, badDate: 0, ms: 0 }
     );
 
-    // 1) RPC нормализации (только для kept_items)
+    // 1) RPC нормализации (только kept_items)
     const urls = kept_items.map((it) => it.link);
     const BATCH = 200;
 
@@ -80,7 +92,8 @@ export async function POST(req: Request) {
       ok: true,
       fetched: items.length,
       kept_after_filter: kept_items.length,
-      dropped_sports,
+      dropped_total,
+      dropped_by_reason: dropStats,
       unique: unique.length,
       skipped_no_norm,
       rss_stats: stats_by_source,
