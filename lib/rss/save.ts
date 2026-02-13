@@ -12,18 +12,17 @@ if (!supabaseUrl || !serviceKey) {
 const supabase = createClient(supabaseUrl, serviceKey);
 
 export type IngestItem = ParsedRssItem & {
-  url_norm: string; // посчитан в route.ts через normalize_url_pg_many
+  url_norm: string;
 };
 
 export type SaveReport = {
   attempted: number;
 
-  // precheck-оценка до записи:
-  existing_in_db: number;
-  would_insert: number;
-  would_update: number;
+  // precheck (оценка до записи)
+  existing_in_db: number; // сколько url_norm уже есть в БД
+  would_insert: number; // сколько новых (attempted - existing_in_db)
 
-  // факт из БД (RPC upsert):
+  // факт (из RPC)
   inserted: number;
   updated: number;
 
@@ -33,7 +32,6 @@ export type SaveReport = {
       attempted: number;
       existing_in_db: number;
       would_insert: number;
-      would_update: number;
     }
   >;
 };
@@ -41,28 +39,26 @@ export type SaveReport = {
 export async function saveRssItems(items: IngestItem[]): Promise<SaveReport> {
   const attempted = items.length;
 
-  // Пустой вход — быстрый выход
   if (attempted === 0) {
     return {
       attempted: 0,
       existing_in_db: 0,
       would_insert: 0,
-      would_update: 0,
       inserted: 0,
       updated: 0,
       by_source: {},
     };
   }
 
-  // Готовим статистику по источникам
+  // init stats by source
   const by_source: SaveReport["by_source"] = {};
   for (const it of items) {
     const k = it.source_id;
-    by_source[k] ??= { attempted: 0, existing_in_db: 0, would_insert: 0, would_update: 0 };
+    by_source[k] ??= { attempted: 0, existing_in_db: 0, would_insert: 0 };
     by_source[k].attempted++;
   }
 
-  // ===== precheck: что уже есть по url_norm =====
+  // ===== precheck: существующие url_norm =====
   const norms = items.map((it) => it.url_norm);
   const existing = new Set<string>();
 
@@ -83,20 +79,18 @@ export async function saveRssItems(items: IngestItem[]): Promise<SaveReport> {
     if (existing.has(it.url_norm)) by_source[it.source_id].existing_in_db++;
   }
   for (const k of Object.keys(by_source)) {
-    by_source[k].would_update = by_source[k].existing_in_db;
     by_source[k].would_insert = by_source[k].attempted - by_source[k].existing_in_db;
   }
 
   const existing_in_db = existing.size;
   const would_insert = attempted - existing_in_db;
-  const would_update = existing_in_db;
 
-  // ===== взрослый bulk-upsert через RPC =====
-  // ВАЖНО: url_norm мы не передаем — он заполняется триггером в БД из url
+  // ===== bulk-upsert через RPC =====
+  // url_norm НЕ отправляем: он заполняется триггером в БД из url
   const payload = items.map((it) => ({
     title: it.title,
     url: it.link,
-    published_at: it.published_at ?? null, // ISO string или null
+    published_at: it.published_at ?? null,
     source: it.source_title,
     source_type: "rss",
     source_id: it.source_id,
@@ -109,7 +103,6 @@ export async function saveRssItems(items: IngestItem[]): Promise<SaveReport> {
 
   if (upErr) throw new Error(`Supabase RPC upsert_news_items_rss error: ${upErr.message}`);
 
-  // Supabase обычно возвращает массив строк вида [{ inserted: X, updated: Y }]
   const inserted = Array.isArray(upData) ? Number(upData[0]?.inserted ?? 0) : 0;
   const updated = Array.isArray(upData) ? Number(upData[0]?.updated ?? 0) : 0;
 
@@ -117,7 +110,6 @@ export async function saveRssItems(items: IngestItem[]): Promise<SaveReport> {
     attempted,
     existing_in_db,
     would_insert,
-    would_update,
     inserted,
     updated,
     by_source,
