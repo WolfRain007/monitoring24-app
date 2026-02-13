@@ -1,3 +1,4 @@
+// lib/rss/parse.ts
 import Parser from "rss-parser";
 import { RSS_SOURCES } from "./sources";
 
@@ -26,16 +27,25 @@ function pickLink(item: any): string | undefined {
   // Иногда guid/id не URL. Отфильтруем очевидный мусор.
   if (!link) return undefined;
   if (!/^https?:\/\//i.test(link)) return undefined;
+
   return link;
 }
 
 function pickPublishedAt(item: any): string | undefined {
-  // rss-parser обычно кладёт isoDate; но у некоторых есть pubDate
+  // rss-parser обычно кладёт isoDate; но у некоторых есть pubDate.
   const v = item?.isoDate ?? item?.pubDate;
-  return typeof v === "string" ? v : undefined;
+  if (typeof v !== "string") return undefined;
+
+  // Превращаем в ISO. Если формат мусорный — не пишем дату.
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return undefined;
+
+  return d.toISOString();
 }
 
-async function fetchFeedXml(url: string): Promise<{ xml: string; contentType?: string; status: number }> {
+async function fetchFeedXml(
+  url: string
+): Promise<{ xml: string; contentType?: string; status: number }> {
   const res = await fetch(url, {
     method: "GET",
     redirect: "follow",
@@ -101,7 +111,7 @@ export async function fetchRssItems(): Promise<ParsedRssItem[]> {
         items.push({
           title,
           link,
-          published_at,
+          published_at, // ISO string или undefined
           source_id: source.id,
           source_title: source.title,
           lang: source.language,
