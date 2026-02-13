@@ -22,9 +22,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const items = await fetchRssItems();
+    // ВАЖНО: теперь fetchRssItems возвращает { items, stats_by_source }
+    const { items, stats_by_source } = await fetchRssItems();
 
-    // 1) Один RPC: получаем url_norm "как в БД"
+    // 1) RPC нормализации
     const urls = items.map((it) => it.link);
     const BATCH = 200;
 
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2) Дедуп по url_norm + собираем IngestItem[]
+    // 2) Дедуп по url_norm + готовим IngestItem
     const byNorm = new Map<string, IngestItem>();
     let skipped_no_norm = 0;
 
@@ -51,21 +52,21 @@ export async function POST(req: Request) {
         skipped_no_norm++;
         continue;
       }
-      if (!byNorm.has(norm)) {
-        byNorm.set(norm, { ...it, url_norm: norm });
-      }
+      if (!byNorm.has(norm)) byNorm.set(norm, { ...it, url_norm: norm });
     }
 
     const unique = [...byNorm.values()];
 
-    // 3) Сохранение + отчёт
+    // 3) Сохранение
     const report = await saveRssItems(unique);
 
+    // 4) Возвращаем статистику в JSON (теперь будет видно в GitHub Actions)
     return NextResponse.json({
       ok: true,
       fetched: items.length,
-      unique: unique.length, // теперь это уникальность по url_norm (как в БД)
+      unique: unique.length,
       skipped_no_norm,
+      rss_stats: stats_by_source,
       saved: report,
     });
   } catch (e) {
@@ -73,4 +74,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
-
