@@ -27,25 +27,24 @@ function pickLink(item: any): string | undefined {
   // Иногда guid/id не URL. Отфильтруем очевидный мусор.
   if (!link) return undefined;
   if (!/^https?:\/\//i.test(link)) return undefined;
-
   return link;
 }
 
-function pickPublishedAt(item: any): string | undefined {
-  // rss-parser обычно кладёт isoDate; но у некоторых есть pubDate.
+function pickPublishedAt(item: any): { published_at?: string; bad: boolean } {
+  // rss-parser обычно кладёт isoDate; но у некоторых есть pubDate
   const v = item?.isoDate ?? item?.pubDate;
-  if (typeof v !== "string") return undefined;
 
-  // Превращаем в ISO. Если формат мусорный — не пишем дату.
+  // Если даты нет — это не "плохая дата", просто отсутствует
+  if (typeof v !== "string") return { published_at: undefined, bad: false };
+
+  // Превращаем в ISO. Если формат мусорный — считаем badDate.
   const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return undefined;
+  if (Number.isNaN(d.getTime())) return { published_at: undefined, bad: true };
 
-  return d.toISOString();
+  return { published_at: d.toISOString(), bad: false };
 }
 
-async function fetchFeedXml(
-  url: string
-): Promise<{ xml: string; contentType?: string; status: number }> {
+async function fetchFeedXml(url: string): Promise<{ xml: string; contentType?: string; status: number }> {
   const res = await fetch(url, {
     method: "GET",
     redirect: "follow",
@@ -74,6 +73,7 @@ export async function fetchRssItems(): Promise<ParsedRssItem[]> {
     const started = Date.now();
     let kept = 0;
     let skipped = 0;
+    let badDate = 0;
 
     try {
       // 1) Скачиваем XML руками (для Euronews часто надёжнее)
@@ -101,7 +101,8 @@ export async function fetchRssItems(): Promise<ParsedRssItem[]> {
       for (const it of feed.items ?? []) {
         const title = typeof it.title === "string" ? it.title.trim() : "";
         const link = pickLink(it);
-        const published_at = pickPublishedAt(it);
+        const { published_at, bad } = pickPublishedAt(it);
+        if (bad) badDate++;
 
         if (!title || !link) {
           skipped++;
@@ -111,7 +112,7 @@ export async function fetchRssItems(): Promise<ParsedRssItem[]> {
         items.push({
           title,
           link,
-          published_at, // ISO string или undefined
+          published_at,
           source_id: source.id,
           source_title: source.title,
           lang: source.language,
@@ -121,7 +122,7 @@ export async function fetchRssItems(): Promise<ParsedRssItem[]> {
 
       const ms = Date.now() - started;
       console.log(
-        `[RSS] source=${source.id} ok total=${total} kept=${kept} skipped=${skipped} ms=${ms} contentType=${contentType}`
+        `[RSS] source=${source.id} ok total=${total} kept=${kept} skipped=${skipped} badDate=${badDate} ms=${ms} contentType=${contentType}`
       );
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
