@@ -1,0 +1,22 @@
+name: retention
+
+on:
+  schedule:
+    - cron: "15 3 * * *"  # ежедневно 03:15 UTC
+  workflow_dispatch: {}
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call retention endpoint
+        env:
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+        run: |
+          echo "Calling retention endpoint..."
+          curl -sS -v \
+            -H "User-Agent: GitHubActions/1.0" \
+            -H "Content-Type: application/json" \
+            -H "x-maintenance-secret: ${MAINTENANCE_SECRET}" \
+            -d '{}' \
+            https://monitoring24-app-xjs.vercel.app/api/maintenance/retention
