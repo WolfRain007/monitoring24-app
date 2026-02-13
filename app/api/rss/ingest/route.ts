@@ -2,7 +2,6 @@
 import { NextResponse } from "next/server";
 import { fetchRssItems } from "@/lib/rss/parse";
 import { saveRssItems } from "@/lib/rss/save";
-import { normalizeUrl } from "@/lib/rss/normalizeUrl";
 
 export const runtime = "nodejs";
 
@@ -15,12 +14,9 @@ export async function POST(req: Request) {
 
     const items = await fetchRssItems();
 
-    // дедуп в рамках прогона по чистому URL
+    // дедуп в рамках прогона по raw link (быстро)
     const map = new Map<string, (typeof items)[number]>();
-    for (const it of items) {
-      const normalized = normalizeUrl(it.link);
-      map.set(normalized, { ...it, link: normalized });
-    }
+    for (const it of items) map.set(it.link, it);
     const unique = [...map.values()];
 
     const report = await saveRssItems(unique);
