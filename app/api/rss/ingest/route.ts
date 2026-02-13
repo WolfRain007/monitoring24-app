@@ -1,7 +1,7 @@
 // app/api/rss/ingest/route.ts
 import { NextResponse } from "next/server";
 import { fetchRssItems } from "@/lib/rss/parse";
-import { saveRssItems } from "@/lib/rss/save";
+import { saveRssItems, type IngestItem } from "@/lib/rss/save";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     const items = await fetchRssItems();
 
-    // 1) Нормализуем URL "как в БД" пачками через RPC
+    // 1) Один RPC: получаем url_norm "как в БД"
     const urls = items.map((it) => it.link);
     const BATCH = 200;
 
@@ -41,30 +41,31 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2) Дедуп внутри прогона уже по url_norm (идеально)
-    // Берём первый встретившийся item для каждого url_norm
-    const byNorm = new Map<string, (typeof items)[number]>();
-    let skippedNoNorm = 0;
+    // 2) Дедуп по url_norm + собираем IngestItem[]
+    const byNorm = new Map<string, IngestItem>();
+    let skipped_no_norm = 0;
 
     for (const it of items) {
       const norm = urlToNorm.get(it.link);
       if (!norm) {
-        skippedNoNorm++;
+        skipped_no_norm++;
         continue;
       }
-      if (!byNorm.has(norm)) byNorm.set(norm, it);
+      if (!byNorm.has(norm)) {
+        byNorm.set(norm, { ...it, url_norm: norm });
+      }
     }
 
     const unique = [...byNorm.values()];
 
-    // 3) Сохраняем
+    // 3) Сохранение + отчёт
     const report = await saveRssItems(unique);
 
     return NextResponse.json({
       ok: true,
       fetched: items.length,
-      unique: unique.length, // теперь это уникальность по url_norm
-      skipped_no_norm: skippedNoNorm,
+      unique: unique.length, // теперь это уникальность по url_norm (как в БД)
+      skipped_no_norm,
       saved: report,
     });
   } catch (e) {
