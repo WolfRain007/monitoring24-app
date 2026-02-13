@@ -16,6 +16,9 @@ export type ParsedRssItem = {
   source_id: string;
   source_title: string;
   lang: "ru" | "en";
+
+  // NEW: категории/рубрики из RSS/Atom (если есть)
+  categories?: string[];
 };
 
 export type RssFetchStats = {
@@ -58,6 +61,61 @@ function pickPublishedAt(item: any): { published_at?: string; bad: boolean } {
   if (Number.isNaN(d.getTime())) return { published_at: undefined, bad: true };
 
   return { published_at: d.toISOString(), bad: false };
+}
+
+function normalizeCategory(s: string): string {
+  // нормализация для сравнения/дедупа, но возвращаем человекочитаемо
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function pickCategories(item: any): string[] | undefined {
+  // rss-parser: чаще всего item.categories: string[]
+  const out: string[] = [];
+
+  const pushStr = (v: unknown) => {
+    if (typeof v !== "string") return;
+    const s = normalizeCategory(v);
+    if (!s) return;
+    out.push(s);
+  };
+
+  // стандартное
+  if (Array.isArray(item?.categories)) {
+    for (const c of item.categories) pushStr(c);
+  }
+
+  // иногда бывает одиночное поле
+  pushStr(item?.category);
+
+  // иногда парсеры/фиды кладут category как объект/массив объектов
+  // (на всякий случай, без фанатизма)
+  const maybeArr = item?.category;
+  if (Array.isArray(maybeArr)) {
+    for (const c of maybeArr) {
+      if (typeof c === "string") pushStr(c);
+      else if (c && typeof c === "object") {
+        pushStr((c as any).term);
+        pushStr((c as any).name);
+        pushStr((c as any).label);
+      }
+    }
+  } else if (maybeArr && typeof maybeArr === "object") {
+    pushStr((maybeArr as any).term);
+    pushStr((maybeArr as any).name);
+    pushStr((maybeArr as any).label);
+  }
+
+  // дедуп (case-insensitive)
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const c of out) {
+    const key = c.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(c);
+  }
+
+  return deduped.length ? deduped : undefined;
 }
 
 async function fetchFeedXml(
@@ -141,6 +199,8 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
         const title = typeof it.title === "string" ? it.title.trim() : "";
         const link = pickLink(it);
         const { published_at, bad } = pickPublishedAt(it);
+        const categories = pickCategories(it);
+
         if (bad) badDate++;
 
         if (!title || !link) {
@@ -155,6 +215,7 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
           source_id: source.id,
           source_title: source.title,
           lang: source.language,
+          categories,
         });
         kept++;
       }
