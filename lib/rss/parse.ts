@@ -12,7 +12,7 @@ const parser = new Parser({
 export type ParsedRssItem = {
   title: string;
   link: string;
-  published_at?: string;
+  published_at?: string; // ISO string
   source_id: string;
   source_title: string;
   lang: "ru" | "en";
@@ -40,16 +40,20 @@ function pickLink(item: any): string | undefined {
     (typeof item?.guid === "string" && item.guid.trim()) ||
     (typeof item?.id === "string" && item.id.trim());
 
+  // Иногда guid/id не URL. Отфильтруем очевидный мусор.
   if (!link) return undefined;
   if (!/^https?:\/\//i.test(link)) return undefined;
   return link;
 }
 
 function pickPublishedAt(item: any): { published_at?: string; bad: boolean } {
+  // rss-parser обычно кладёт isoDate; но у некоторых есть pubDate
   const v = item?.isoDate ?? item?.pubDate;
 
+  // Если даты нет — это не "плохая дата", просто отсутствует
   if (typeof v !== "string") return { published_at: undefined, bad: false };
 
+  // Превращаем в ISO. Если формат мусорный — считаем badDate.
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return { published_at: undefined, bad: true };
 
@@ -66,7 +70,7 @@ async function fetchFeedXml(
       "User-Agent": "monitoring24/1.0 (+https://monitoring24.info)",
       Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
     },
-    // @ts-ignore
+    // @ts-ignore - в Node runtime поддерживается
     cache: "no-store",
   });
 
@@ -91,6 +95,7 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
     let badDate = 0;
 
     try {
+      // 1) Скачиваем XML руками (для Euronews часто надёжнее)
       const { xml, contentType, status } = await fetchFeedXml(source.url);
 
       if (status >= 400) {
@@ -127,9 +132,11 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
         continue;
       }
 
+      // 2) Парсим строку
       const feed = await parser.parseString(xml);
       const total = feed.items?.length ?? 0;
 
+      // 3) Нормализуем items
       for (const it of feed.items ?? []) {
         const title = typeof it.title === "string" ? it.title.trim() : "";
         const link = pickLink(it);
