@@ -20,22 +20,52 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const DAYS = 60;
+    const NEWS_ITEMS_DAYS = 60;     // как было
+    const REJECTED_DAYS = 14;       // как ты выбрал
 
-    const { data, error } = await supabase.rpc("retention_cleanup_news_items", { days: DAYS });
-    if (error) throw new Error(`RPC retention_cleanup_news_items error: ${error.message}`);
+    // 1) Чистим news_items (как было)
+    const { data: dataNews, error: errNews } = await supabase.rpc(
+      "retention_cleanup_news_items",
+      { days: NEWS_ITEMS_DAYS }
+    );
+    if (errNews) throw new Error(`RPC retention_cleanup_news_items error: ${errNews.message}`);
 
-    const deleted = Array.isArray(data) ? Number(data[0]?.deleted ?? 0) : 0;
+    const deleted_news_items = Array.isArray(dataNews) ? Number(dataNews[0]?.deleted ?? 0) : 0;
+
+    // 2) Чистим news_items_rejected (новое)
+    const { data: dataRejected, error: errRejected } = await supabase.rpc(
+      "retention_cleanup_news_items_rejected",
+      { days: REJECTED_DAYS }
+    );
+    if (errRejected) {
+      throw new Error(`RPC retention_cleanup_news_items_rejected error: ${errRejected.message}`);
+    }
+
+    const deleted_rejected = Array.isArray(dataRejected)
+      ? Number(dataRejected[0]?.deleted ?? 0)
+      : 0;
 
     return NextResponse.json({
       ok: true,
       policy: {
-        table: "news_items",
-        days: DAYS,
-        only_unlinked: true,
-        date_basis: "coalesce(published_at, created_at)",
+        news_items: {
+          table: "news_items",
+          days: NEWS_ITEMS_DAYS,
+          only_unlinked: true,
+          date_basis: "coalesce(published_at, created_at)",
+          rpc: "retention_cleanup_news_items",
+        },
+        news_items_rejected: {
+          table: "news_items_rejected",
+          days: REJECTED_DAYS,
+          date_basis: "created_at",
+          rpc: "retention_cleanup_news_items_rejected",
+        },
       },
-      deleted,
+      deleted: {
+        news_items: deleted_news_items,
+        news_items_rejected: deleted_rejected,
+      },
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
