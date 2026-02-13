@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { fetchRssItems } from "@/lib/rss/parse";
 import { saveRssItems, type IngestItem } from "@/lib/rss/save";
 import { createClient } from "@supabase/supabase-js";
+import { isSportsItem } from "@/lib/rss/filter";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
 
     const { items, stats_by_source } = await fetchRssItems();
 
+    // ====== NEW: фильтрация спорта (ENFORCE) ======
+    const kept_items = items.filter((it) => !isSportsItem(it));
+    const dropped_sports = items.length - kept_items.length;
+
     const rss_stats_total = Object.values(stats_by_source).reduce(
       (acc, s) => {
         acc.total_items += s.total_items ?? 0;
@@ -36,8 +41,8 @@ export async function POST(req: Request) {
       { total_items: 0, kept: 0, skipped: 0, badDate: 0, ms: 0 }
     );
 
-    // 1) RPC нормализации
-    const urls = items.map((it) => it.link);
+    // 1) RPC нормализации (только для kept_items)
+    const urls = kept_items.map((it) => it.link);
     const BATCH = 200;
 
     const urlToNorm = new Map<string, string>();
@@ -57,7 +62,7 @@ export async function POST(req: Request) {
     const byNorm = new Map<string, IngestItem>();
     let skipped_no_norm = 0;
 
-    for (const it of items) {
+    for (const it of kept_items) {
       const norm = urlToNorm.get(it.link);
       if (!norm) {
         skipped_no_norm++;
@@ -68,12 +73,14 @@ export async function POST(req: Request) {
 
     const unique = [...byNorm.values()];
 
-    // 3) Сохранение (возвращает и would_*, и inserted/updated)
+    // 3) Сохранение
     const report = await saveRssItems(unique);
 
     return NextResponse.json({
       ok: true,
       fetched: items.length,
+      kept_after_filter: kept_items.length,
+      dropped_sports,
       unique: unique.length,
       skipped_no_norm,
       rss_stats: stats_by_source,
