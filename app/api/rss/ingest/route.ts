@@ -9,15 +9,13 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const secret = req.headers.get("x-ingest-secret");
-
     if (!process.env.INGEST_SECRET || secret !== process.env.INGEST_SECRET) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const items = await fetchRssItems();
 
-    // Дедуп внутри одного прогона по НОРМАЛИЗОВАННОМУ url
-    // и одновременно гарантируем, что дальше по пайплайну link уже нормализован.
+    // дедуп в рамках прогона по чистому URL
     const map = new Map<string, (typeof items)[number]>();
     for (const it of items) {
       const normalized = normalizeUrl(it.link);
