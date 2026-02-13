@@ -1,40 +1,49 @@
 // lib/rss/filter.ts
 import type { ParsedRssItem } from "./parse";
 
-export type DropReason =
-  | "sports"
-  | "culture"
-  | "entertainment"
-  | "other_noise";
+export type DropReason = "sports" | "culture";
 
 function norm(s: string) {
   return (s ?? "").toLowerCase().trim();
 }
 
 function includesAny(haystack: string, needles: string[]) {
-  return needles.some((n) => haystack.includes(n));
+  const h = norm(haystack);
+  return needles.some((n) => h.includes(n));
 }
 
-function matchUrl(url: string, patterns: string[]) {
-  const u = norm(url);
-  return includesAny(u, patterns);
+function anyCategoryMatches(categories: string[] | undefined, needles: string[]) {
+  if (!categories?.length) return false;
+  const joined = categories.map(norm).join(" | ");
+  return needles.some((n) => joined.includes(n));
 }
 
-function matchTitle(title: string, keywords: string[]) {
-  const t = norm(title);
-  return includesAny(t, keywords);
-}
-
-/**
- * Возвращает причину дропа или null если оставляем.
- * Работает без категорий RSS (только title+url), т.к. в текущем ParsedRssItem
- * категории могут отсутствовать.
- */
 export function getDropReason(it: ParsedRssItem): DropReason | null {
   const title = it.title ?? "";
   const url = it.link ?? "";
+  const categories = it.categories;
 
-  // --- SPORTS ---
+  // ===== SPORTS =====
+  const sportsCat = [
+    "спорт",
+    "sport",
+    "sports",
+    "футбол",
+    "football",
+    "soccer",
+    "хоккей",
+    "hockey",
+    "теннис",
+    "tennis",
+    "mma",
+    "ufc",
+    "nba",
+    "nhl",
+    "формула 1",
+    "formula 1",
+    "f1",
+  ];
+
   const sportsUrl = [
     "/sport",
     "/sports",
@@ -68,12 +77,9 @@ export function getDropReason(it: ParsedRssItem): DropReason | null {
     "теннис",
     "баскетбол",
     "волейбол",
-    "чемпион",
     "тренер",
     "клуб",
     "дерби",
-    "ufc",
-    "mma",
     // EN
     "sport",
     "match",
@@ -93,13 +99,38 @@ export function getDropReason(it: ParsedRssItem): DropReason | null {
     "nba",
     "nhl",
     "formula 1",
+    "ufc",
+    "mma",
   ];
 
-  if ((title && matchTitle(title, sportsKw)) || (url && matchUrl(url, sportsUrl))) {
+  if (
+    anyCategoryMatches(categories, sportsCat) ||
+    (title && includesAny(title, sportsKw)) ||
+    (url && includesAny(url, sportsUrl))
+  ) {
     return "sports";
   }
 
-  // --- CULTURE ---
+  // ===== CULTURE =====
+  const cultureCat = [
+    "культура",
+    "culture",
+    "афиша",
+    "afisha",
+    "театр",
+    "theatre",
+    "theater",
+    "кино",
+    "cinema",
+    "film",
+    "музыка",
+    "music",
+    "art",
+    "искусство",
+    "books",
+    "книги",
+  ];
+
   const cultureUrl = [
     "/culture",
     "/kultura",
@@ -128,11 +159,12 @@ export function getDropReason(it: ParsedRssItem): DropReason | null {
     "сериал",
     "концерт",
     "фестиваль",
-    "певец",
-    "актёр",
-    "актриса",
-    "режиссёр",
     "художник",
+    "режиссёр",
+    "режиссер",
+    "актёр",
+    "актер",
+    "актриса",
     "литератур",
     "книга",
     "поэт",
@@ -148,37 +180,20 @@ export function getDropReason(it: ParsedRssItem): DropReason | null {
     "series",
     "concert",
     "festival",
-    "singer",
+    "artist",
+    "director",
     "actor",
     "actress",
-    "director",
-    "artist",
-    "book",
     "literature",
+    "book",
   ];
 
-  if ((title && matchTitle(title, cultureKw)) || (url && matchUrl(url, cultureUrl))) {
+  if (
+    anyCategoryMatches(categories, cultureCat) ||
+    (title && includesAny(title, cultureKw)) ||
+    (url && includesAny(url, cultureUrl))
+  ) {
     return "culture";
-  }
-
-  // --- ENTERTAINMENT / SHOWBIZ (часто тоже шум для city-events) ---
-  // Если не хочешь резать это — скажи, уберу этот блок.
-  const entUrl = ["/showbiz", "/stars", "/celebr", "/entertainment"];
-  const entKw = [
-    // RU
-    "шоу-бизнес",
-    "знаменит",
-    "звезд",
-    "селебр",
-    "скандал",
-    // EN
-    "celebr",
-    "showbiz",
-    "entertainment",
-  ];
-
-  if ((title && matchTitle(title, entKw)) || (url && matchUrl(url, entUrl))) {
-    return "entertainment";
   }
 
   return null;
