@@ -1,6 +1,7 @@
 // lib/rss/parse.ts
 import Parser from "rss-parser";
 import { RSS_SOURCES } from "./sources";
+import { htmlToText } from "html-to-text";
 
 const parser = new Parser({
   headers: {
@@ -17,8 +18,11 @@ export type ParsedRssItem = {
   source_title: string;
   lang: "ru" | "en";
 
-  // NEW: категории/рубрики из RSS/Atom (если есть)
   categories?: string[];
+
+  // NEW
+  content_html?: string;
+  content_text?: string;
 };
 
 export type RssFetchStats = {
@@ -43,20 +47,15 @@ function pickLink(item: any): string | undefined {
     (typeof item?.guid === "string" && item.guid.trim()) ||
     (typeof item?.id === "string" && item.id.trim());
 
-  // Иногда guid/id не URL. Отфильтруем очевидный мусор.
   if (!link) return undefined;
   if (!/^https?:\/\//i.test(link)) return undefined;
   return link;
 }
 
 function pickPublishedAt(item: any): { published_at?: string; bad: boolean } {
-  // rss-parser обычно кладёт isoDate; но у некоторых есть pubDate
   const v = item?.isoDate ?? item?.pubDate;
-
-  // Если даты нет — это не "плохая дата", просто отсутствует
   if (typeof v !== "string") return { published_at: undefined, bad: false };
 
-  // Превращаем в ISO. Если формат мусорный — считаем badDate.
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return { published_at: undefined, bad: true };
 
@@ -64,12 +63,10 @@ function pickPublishedAt(item: any): { published_at?: string; bad: boolean } {
 }
 
 function normalizeCategory(s: string): string {
-  // нормализация для сравнения/дедупа, но возвращаем человекочитаемо
   return s.replace(/\s+/g, " ").trim();
 }
 
 function pickCategories(item: any): string[] | undefined {
-  // rss-parser: чаще всего item.categories: string[]
   const out: string[] = [];
 
   const pushStr = (v: unknown) => {
@@ -79,16 +76,12 @@ function pickCategories(item: any): string[] | undefined {
     out.push(s);
   };
 
-  // стандартное
   if (Array.isArray(item?.categories)) {
     for (const c of item.categories) pushStr(c);
   }
 
-  // иногда бывает одиночное поле
   pushStr(item?.category);
 
-  // иногда парсеры/фиды кладут category как объект/массив объектов
-  // (на всякий случай, без фанатизма)
   const maybeArr = item?.category;
   if (Array.isArray(maybeArr)) {
     for (const c of maybeArr) {
@@ -105,7 +98,6 @@ function pickCategories(item: any): string[] | undefined {
     pushStr((maybeArr as any).label);
   }
 
-  // дедуп (case-insensitive)
   const seen = new Set<string>();
   const deduped: string[] = [];
   for (const c of out) {
@@ -116,6 +108,51 @@ function pickCategories(item: any): string[] | undefined {
   }
 
   return deduped.length ? deduped : undefined;
+}
+
+function normalizeSpaces(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function pickContentHtml(item: any): string | undefined {
+  // rss-parser/фиды могут класть:
+  // - content:encoded
+  // - content
+  // - summary
+  // - description
+  const raw =
+    (typeof item?.["content:encoded"] === "string" && item["content:encoded"]) ||
+    (typeof item?.content === "string" && item.content) ||
+    (typeof item?.summary === "string" && item.summary) ||
+    (typeof item?.description === "string" && item.description);
+
+  if (!raw) return undefined;
+
+  const s = String(raw).trim();
+  if (!s) return undefined;
+
+  // ограничим размер (на всякий)
+  return s.length > 200_000 ? s.slice(0, 200_000) : s;
+}
+
+function pickContentText(item: any): string | undefined {
+  // если парсер дал краткий plain-текст
+  const snippet = typeof item?.contentSnippet === "string" ? item.contentSnippet.trim() : "";
+  if (snippet) return normalizeSpaces(snippet);
+
+  const html = pickContentHtml(item);
+  if (!html) return undefined;
+
+  const text = htmlToText(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: "a", options: { ignoreHref: true } },
+      { selector: "img", format: "skip" },
+    ],
+  });
+
+  const norm = normalizeSpaces(text);
+  return norm || undefined;
 }
 
 async function fetchFeedXml(
@@ -153,7 +190,6 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
     let badDate = 0;
 
     try {
-      // 1) Скачиваем XML руками (для Euronews часто надёжнее)
       const { xml, contentType, status } = await fetchFeedXml(source.url);
 
       if (status >= 400) {
@@ -190,16 +226,17 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
         continue;
       }
 
-      // 2) Парсим строку
       const feed = await parser.parseString(xml);
       const total = feed.items?.length ?? 0;
 
-      // 3) Нормализуем items
       for (const it of feed.items ?? []) {
         const title = typeof it.title === "string" ? it.title.trim() : "";
         const link = pickLink(it);
         const { published_at, bad } = pickPublishedAt(it);
         const categories = pickCategories(it);
+
+        const content_html = pickContentHtml(it);
+        const content_text = pickContentText(it);
 
         if (bad) badDate++;
 
@@ -216,6 +253,8 @@ export async function fetchRssItems(): Promise<RssFetchResult> {
           source_title: source.title,
           lang: source.language,
           categories,
+          content_html,
+          content_text,
         });
         kept++;
       }
