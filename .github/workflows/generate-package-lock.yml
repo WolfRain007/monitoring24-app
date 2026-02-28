@@ -6,14 +6,9 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: generate-package-lock
-  cancel-in-progress: false
-
 jobs:
   lockfile:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,26 +16,19 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      # ВАЖНО: без cache, иначе setup-node падает, когда нет lock-файла
-      - name: Setup Node.js (LTS)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Generate package-lock.json (npm install)
-        run: |
-          npm install --no-audit --no-fund
+      - name: npm install (creates package-lock.json)
+        run: npm install --no-audit --no-fund
 
-      - name: Show lockfile status
-        run: |
-          ls -la package-lock.json || true
-          git status
-
-      - name: Commit and push package-lock.json
+      - name: Commit and push lockfile
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add package-lock.json package.json
-
-          if
+          git status
+          git commit -m "chore: generate package-lock.json" || echo "Nothing to commit"
+          git push
