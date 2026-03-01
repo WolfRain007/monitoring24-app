@@ -16,6 +16,7 @@ jobs:
       BATCH_LIMIT: "50"
       MIN_TEXT_LEN: "400"
       MIN_TEXT_LEN_RIA: "250"
+      MIN_TEXT_LEN_EURONEWS: "250"
       MAX_TEXT_LEN: "60000"
 
     steps:
