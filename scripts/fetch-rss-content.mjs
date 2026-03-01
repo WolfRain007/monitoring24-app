@@ -5,8 +5,8 @@ import { Readability } from "@mozilla/readability";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const BATCH_LIMIT = Number(process.env.BATCH_LIMIT || "50");
 
+const BATCH_LIMIT = Number(process.env.BATCH_LIMIT || "50");
 const MAX_TEXT_LEN = Number(process.env.MAX_TEXT_LEN || "60000");
 const MIN_TEXT_LEN = Number(process.env.MIN_TEXT_LEN || "400");
 
@@ -34,7 +34,7 @@ function looksLikeIsoDateLine(line) {
 }
 
 function stripUrlsInsideLine(line) {
-  return line.replace(/https?:\/\/\S+/gi, "").replace(/\s+/g, " ").trim();
+  return (line || "").replace(/https?:\/\/\S+/gi, "").replace(/\s+/g, " ").trim();
 }
 
 function letterRatioLow(line) {
@@ -68,14 +68,12 @@ function cutFromFirstFooterMarker(lines) {
     /@rian\.ru/i,
     /^ФГУП\s+МИА\s+«Россия сегодня»/i,
     /^Россия сегодня$/i,
-    /^\d{4}$/
+    /^\d{4}$/ // "2026"
   ];
 
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
-    if (markers.some((re) => re.test(l))) {
-      return lines.slice(0, i);
-    }
+    if (markers.some((re) => re.test(l))) return lines.slice(0, i);
   }
   return lines;
 }
@@ -89,8 +87,7 @@ function removeTagBlocks(lines, maxScan = 80) {
     if (i < scanLimit && isProbablyTagLine(lines[i])) {
       let j = i;
       while (j < scanLimit && isProbablyTagLine(lines[j])) j++;
-      const runLen = j - i;
-      if (runLen >= 3) {
+      if (j - i >= 3) {
         i = j;
         continue;
       }
@@ -107,15 +104,17 @@ function normalizeRia(text, url) {
     .map(collapseSpacesLine)
     .filter(Boolean);
 
-  const riaTimePrefix = /^\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}/;
+  const riaTimePrefix = /^\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}/; // "17:38 01.03.2026"
 
   lines = lines.filter((l) => {
     if (looksLikeIsoDateLine(l)) return false;
     if (riaTimePrefix.test(l)) return false;
     if (/\(обновлено:/i.test(l)) return false;
+
     if (/^Коллаж\b/i.test(l)) return false;
     if (/РИА Новости,\s*\d+/i.test(l)) return false;
     if (/- РИА Новости/i.test(l)) return false;
+
     return true;
   });
 
@@ -134,7 +133,7 @@ function normalizeRia(text, url) {
   lines = cutFromFirstFooterMarker(lines);
   lines = removeTagBlocks(lines, 80);
 
-  // уберём до 6 коротких тегов подряд в начале (если просочились)
+  // убрать до 6 коротких "тегов" подряд в первых 15 строках
   {
     const limit = Math.min(lines.length, 15);
     const cleaned = [];
@@ -172,7 +171,6 @@ function normalizeEuronews(text, url) {
     .map(collapseSpacesLine)
     .filter(Boolean);
 
-  // убрать URL строки/внутри строки
   lines = lines
     .map(stripUrlsInsideLine)
     .map(collapseSpacesLine)
@@ -183,30 +181,25 @@ function normalizeEuronews(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
-  // 1) убрать шапку "Published on" + следующую строку с датой
-  // Published on
-  // 01/03/2026 - 15:00 GMT+1
+  // убрать блок "Published on" + дату (обычно первые 2 строки)
   if (lines[0]?.toLowerCase() === "published on") {
     lines.shift();
     if (lines[0] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[0])) {
       lines.shift();
     }
-  }
-
-  // иногда "Published on" встречается не первой строкой (редко) — чистим в первых 10 строках
-  for (let i = 0; i < Math.min(lines.length, 10); i++) {
-    if (lines[i]?.toLowerCase() === "published on") {
-      // вырезаем i и i+1 если там дата
-      lines.splice(i, 1);
-      if (lines[i] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[i])) {
+  } else {
+    // иногда попадается в первых 10 строках
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      if (lines[i]?.toLowerCase() === "published on") {
         lines.splice(i, 1);
+        if (lines[i] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[i])) {
+          lines.splice(i, 1);
+        }
+        break;
       }
-      break;
     }
   }
 
-  // 2) убрать рекламные вставки
-  // "ADVERTISEMENT", "ADVE", "AD", "ADVERTISEMENT:"
   const isAdLine = (l) => {
     const u = (l || "").trim().toUpperCase();
     if (u === "AD") return true;
@@ -216,7 +209,6 @@ function normalizeEuronews(text, url) {
   };
   lines = lines.filter((l) => !isAdLine(l));
 
-  // 3) финальная нормализация
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -263,7 +255,6 @@ async function fetchHtml(url) {
       err.code = 403;
       throw err;
     }
-
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const ct = res.headers.get("content-type") || "";
@@ -301,23 +292,45 @@ function extractReadable(html, url) {
 }
 
 async function setStatus(id, status, content_html = "", content_text = "", error = "") {
-  const { error: saveErr } = await supabase.rpc("set_news_item_content", {
+  const payload = {
     p_id: id,
     p_status: status,
     p_content_html: content_html,
     p_content_text: content_text,
     p_error: (error || "").slice(0, 500)
-  });
-  if (saveErr) throw saveErr;
+  };
+
+  const { data, error: saveErr } = await supabase.rpc("set_news_item_content", payload);
+
+  if (saveErr) {
+    console.error("set_news_item_content failed", {
+      id,
+      status,
+      message: saveErr.message,
+      details: saveErr.details,
+      hint: saveErr.hint,
+      code: saveErr.code
+    });
+    throw saveErr;
+  }
+
+  return data;
 }
 
 async function main() {
+  console.log("env", {
+    SUPABASE_URL,
+    SERVICE_ROLE_PREFIX: (SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 6),
+    BATCH_LIMIT,
+    MIN_TEXT_LEN,
+    MAX_TEXT_LEN
+  });
+
   const limit = Math.min(Math.max(BATCH_LIMIT, 1), 500);
 
-  const { data: items, error } = await supabase.rpc(
-    "fetch_next_news_items_for_content",
-    { p_limit: limit }
-  );
+  const { data: items, error } = await supabase.rpc("fetch_next_news_items_for_content", {
+    p_limit: limit
+  });
   if (error) throw error;
 
   if (!items || items.length === 0) {
@@ -343,6 +356,7 @@ async function main() {
 
       if (!content_text || content_text.length < MIN_TEXT_LEN) {
         await setStatus(id, "error", "", "", "Extracted content too short/empty");
+        console.log(`error: ${source_id} ${id} Extracted content too short/empty`);
         continue;
       }
 
@@ -364,6 +378,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error("FATAL", e);
   process.exit(1);
 });
