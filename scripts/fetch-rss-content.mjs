@@ -13,7 +13,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
+  auth: { persistSession: false }
 });
 
 function cleanText(s) {
@@ -33,8 +33,8 @@ async function fetchHtml(url) {
         "user-agent":
           "Mozilla/5.0 (compatible; monitoring24-app/1.0; +https://github.com/WolfRain007/monitoring24-app)",
         accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      }
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -55,13 +55,15 @@ function extractReadable(html, url) {
   const reader = new Readability(dom.window.document);
   const article = reader.parse();
 
-  if (!article || !article.content) return { content_html: "", content_text: "" };
+  if (!article || !article.content) {
+    return { content_html: "", content_text: "" };
+  }
 
   const content_html = article.content;
   const content_text = cleanText(
     htmlToText(content_html, {
       wordwrap: false,
-      selectors: [{ selector: "a", options: { ignoreHref: true } }],
+      selectors: [{ selector: "a", options: { ignoreHref: true } }]
     })
   );
 
@@ -69,9 +71,11 @@ function extractReadable(html, url) {
 }
 
 async function main() {
+  const limit = Math.min(Math.max(BATCH_LIMIT, 1), 500);
+
   const { data: items, error } = await supabase.rpc(
     "fetch_next_news_items_for_content",
-    { p_limit: Math.min(Math.max(BATCH_LIMIT, 1), 500) }
+    { p_limit: limit }
   );
 
   if (error) throw error;
@@ -96,7 +100,7 @@ async function main() {
           p_status: "error",
           p_content_html: "",
           p_content_text: "",
-          p_error: "Readability extracted empty content",
+          p_error: "Readability extracted empty content"
         });
         continue;
       }
@@ -106,7 +110,7 @@ async function main() {
         p_status: "ok",
         p_content_html: content_html,
         p_content_text: content_text,
-        p_error: "",
+        p_error: ""
       });
 
       if (saveErr) throw saveErr;
@@ -114,13 +118,15 @@ async function main() {
       console.log(`ok: ${id}`);
     } catch (e) {
       const msg = e?.message ? e.message : String(e);
+
       await supabase.rpc("set_news_item_content", {
         p_id: id,
         p_status: "error",
         p_content_html: "",
         p_content_text: "",
-        p_error: msg.slice(0, 500),
+        p_error: msg.slice(0, 500)
       });
+
       console.log(`error: ${id} ${msg}`);
     }
   }
