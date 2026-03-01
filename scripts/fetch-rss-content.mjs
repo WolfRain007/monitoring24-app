@@ -7,7 +7,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BATCH_LIMIT = Number(process.env.BATCH_LIMIT || "50");
 
-// чтобы база не раздувалась
 const MAX_TEXT_LEN = Number(process.env.MAX_TEXT_LEN || "60000");
 const MIN_TEXT_LEN = Number(process.env.MIN_TEXT_LEN || "400");
 
@@ -31,17 +30,14 @@ function collapseSpacesLine(s) {
 }
 
 function looksLikeIsoDateLine(line) {
-  // 2026-03-01T18:54:00+03:00
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)?$/.test(line);
 }
 
 function stripUrlsInsideLine(line) {
-  // убираем URL внутри строки (часто "https://... Заголовок ...")
   return line.replace(/https?:\/\/\S+/gi, "").replace(/\s+/g, " ").trim();
 }
 
 function letterRatioLow(line) {
-  // если букв почти нет — часто это мусор/служебное
   const l = line || "";
   const letters = (l.match(/[A-Za-zА-Яа-яЁё]/g) || []).length;
   const digits = (l.match(/[0-9]/g) || []).length;
@@ -50,78 +46,147 @@ function letterRatioLow(line) {
   return letters / effective < 0.25 && l.length > 30;
 }
 
+function isProbablyTagLine(l) {
+  // Пример: "иран", "тегеран (город)", "военная операция ...", "краснодарский край"
+  if (!l) return false;
+  if (l.length > 60) return false;
+  if (/[.!?…"»)]$/.test(l)) return false;
+
+  // обычно 1-5 слов
+  const words = l.split(" ").filter(Boolean);
+  if (words.length < 1 || words.length > 6) return false;
+
+  // если строка выглядит как контакт/телефон/почта — не тег
+  if (/@/.test(l)) return false;
+  if (/^\+?\d[\d\s()-]{6,}$/.test(l)) return false;
+
+  return true;
+}
+
+function cutFromFirstFooterMarker(lines) {
+  // Вырезаем хвост начиная с первого "маркера" футера РИА
+  const markers = [
+    /^РИА Новости$/i,
+    /@rian\.ru/i,
+    /^ФГУП\s+МИА\s+«Россия сегодня»/i,
+    /^Россия сегодня$/i,
+    /^\d{4}$/ // "2026"
+  ];
+
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (markers.some((re) => re.test(l))) {
+      return lines.slice(0, i);
+    }
+  }
+  return lines;
+}
+
+function removeTagBlocks(lines, maxScan = 80) {
+  // Удаляем любые подряд идущие блоки tag-lines (>=3) в первых maxScan строках
+  const scanLimit = Math.min(lines.length, maxScan);
+
+  let i = 0;
+  const result = [];
+  while (i < lines.length) {
+    if (i < scanLimit && isProbablyTagLine(lines[i])) {
+      let j = i;
+      while (j < scanLimit && isProbablyTagLine(lines[j])) j++;
+
+      const runLen = j - i;
+      if (runLen >= 3) {
+        // пропускаем весь блок
+        i = j;
+        continue;
+      }
+    }
+
+    result.push(lines[i]);
+    i++;
+  }
+
+  return result;
+}
+
 function normalizeRia(text, url) {
   let lines = (text || "")
     .split(/\r?\n/)
     .map(collapseSpacesLine)
     .filter(Boolean);
 
-  // 1) выпиливаем явные служебные строки
-  const riaUpdated = /^$обновлено:\s*\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}$$/i;
+  // 1) Удаляем явный мусор/служебку
   const riaTimePrefix = /^\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}/; // "19:07 01.03.2026 ..."
-  const riaBrand = /- РИА Новости/i;
-
   lines = lines.filter((l) => {
-    if (riaUpdated.test(l)) return false;
     if (looksLikeIsoDateLine(l)) return false;
     if (riaTimePrefix.test(l)) return false;
+
+    // шире, чем было: удаляем любую строку, где есть "(обновлено:"
+    if (/\(обновлено:/i.test(l)) return false;
+
     if (/^Коллаж\b/i.test(l)) return false;
     if (/РИА Новости,\s*\d+/i.test(l)) return false; // "РИА Новости, 1920, ..."
-    if (riaBrand.test(l)) return false;
+    if (/- РИА Новости/i.test(l)) return false; // заголовок с брендом
+
     return true;
   });
 
-  // 2) убрать URL внутри строк
+  // 2) Убираем URL внутри строк
   lines = lines
     .map(stripUrlsInsideLine)
     .map(collapseSpacesLine)
     .filter(Boolean);
 
-  // 3) убрать дубли заголовка (часто 2 раза подряд)
-  if (lines.length >= 2 && lines[0] === lines[1]) {
-    lines.splice(1, 1);
-  }
-
-  // 4) убрать строку, равную URL статьи (если вдруг осталась)
+  // 3) Убираем строку == URL статьи
   if (url) {
     const u = url.trim();
     lines = lines.filter((l) => l !== u);
   }
 
-  // 5) выкинуть блок тегов в начале:
-  // подряд идут короткие строки (1-4 слова) без точек/знаков конца предложения
-  // пример: "в мире", "израиль", "египет", ...
-  const isTagLine = (l) => {
-    if (l.length > 40) return false;
-    if (/[.!?…"»)]$/.test(l)) return false;
-    const words = l.split(" ").filter(Boolean);
-    if (words.length < 1 || words.length > 4) return false;
-    // если есть глаголы/сложные конструкции — не тег
-    return true;
-  };
+  // 4) Убираем дубли первой строки (часто заголовок повторяется)
+  if (lines.length >= 2 && lines[0] === lines[1]) {
+    lines.splice(1, 1);
+  }
 
-  // ищем “пучок” тегов в первых 30 строках
-  let tagStart = -1;
-  let tagEnd = -1;
-  for (let i = 0; i < Math.min(lines.length, 30); i++) {
-    if (isTagLine(lines[i])) {
-      if (tagStart === -1) tagStart = i;
-      tagEnd = i;
-    } else if (tagStart !== -1) {
-      break;
+  // 5) Срезаем футер РИА (контакты/копирайт)
+  lines = cutFromFirstFooterMarker(lines);
+
+  // 6) Удаляем блоки тегов (пачки коротких строк)
+  lines = removeTagBlocks(lines, 80);
+
+  // 7) Иногда остаются 1-2 тега сразу после заголовка — уберём до 6 подряд tag-lines,
+  // но только в первых 15 строках и если они реально "короткие".
+  {
+    const limit = Math.min(lines.length, 15);
+    const cleaned = [];
+    let removedInRow = 0;
+
+    for (let i = 0; i < limit; i++) {
+      const l = lines[i];
+      if (isProbablyTagLine(l) && l.length <= 35) {
+        removedInRow++;
+        if (removedInRow <= 6) continue;
+      } else {
+        removedInRow = 0;
+      }
+      cleaned.push(l);
     }
-  }
-  // удаляем только если тегов было хотя бы 3 подряд
-  if (tagStart !== -1 && tagEnd - tagStart + 1 >= 3) {
-    lines.splice(tagStart, tagEnd - tagStart + 1);
+
+    // добавляем хвост после limit без изменений (там tags обычно уже нет)
+    lines = cleaned.concat(lines.slice(limit));
   }
 
-  // 6) финальная фильтрация мусорных строк
-  lines = lines.filter((l) => !letterRatioLow(l));
+  // 8) Финальная фильтрация мусорных строк
+  lines = lines.filter((l) => {
+    if (!l) return false;
+    if (letterRatioLow(l)) return false;
+    // телефон
+    if (/^\+?\d[\d\s()-]{6,}$/.test(l)) return false;
+    // email
+    if (/@/.test(l) && /rian\.ru/i.test(l)) return false;
+    return true;
+  });
 
-  // 7) собрать обратно
-  let out = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return out;
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function normalizeGeneric(text, url) {
@@ -138,8 +203,7 @@ function normalizeGeneric(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
-  let out = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  return out;
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 async function fetchHtml(url) {
