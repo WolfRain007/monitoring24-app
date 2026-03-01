@@ -46,17 +46,16 @@ function letterRatioLow(line) {
   return letters / effective < 0.25 && l.length > 30;
 }
 
+/* ---------------- RIA ---------------- */
+
 function isProbablyTagLine(l) {
-  // Пример: "иран", "тегеран (город)", "военная операция ...", "краснодарский край"
   if (!l) return false;
   if (l.length > 60) return false;
   if (/[.!?…"»)]$/.test(l)) return false;
 
-  // обычно 1-5 слов
   const words = l.split(" ").filter(Boolean);
   if (words.length < 1 || words.length > 6) return false;
 
-  // если строка выглядит как контакт/телефон/почта — не тег
   if (/@/.test(l)) return false;
   if (/^\+?\d[\d\s()-]{6,}$/.test(l)) return false;
 
@@ -64,13 +63,12 @@ function isProbablyTagLine(l) {
 }
 
 function cutFromFirstFooterMarker(lines) {
-  // Вырезаем хвост начиная с первого "маркера" футера РИА
   const markers = [
     /^РИА Новости$/i,
     /@rian\.ru/i,
     /^ФГУП\s+МИА\s+«Россия сегодня»/i,
     /^Россия сегодня$/i,
-    /^\d{4}$/ // "2026"
+    /^\d{4}$/
   ];
 
   for (let i = 0; i < lines.length; i++) {
@@ -83,7 +81,6 @@ function cutFromFirstFooterMarker(lines) {
 }
 
 function removeTagBlocks(lines, maxScan = 80) {
-  // Удаляем любые подряд идущие блоки tag-lines (>=3) в первых maxScan строках
   const scanLimit = Math.min(lines.length, maxScan);
 
   let i = 0;
@@ -92,19 +89,15 @@ function removeTagBlocks(lines, maxScan = 80) {
     if (i < scanLimit && isProbablyTagLine(lines[i])) {
       let j = i;
       while (j < scanLimit && isProbablyTagLine(lines[j])) j++;
-
       const runLen = j - i;
       if (runLen >= 3) {
-        // пропускаем весь блок
         i = j;
         continue;
       }
     }
-
     result.push(lines[i]);
     i++;
   }
-
   return result;
 }
 
@@ -114,47 +107,34 @@ function normalizeRia(text, url) {
     .map(collapseSpacesLine)
     .filter(Boolean);
 
-  // 1) Удаляем явный мусор/служебку
-  const riaTimePrefix = /^\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}/; // "19:07 01.03.2026 ..."
+  const riaTimePrefix = /^\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}/;
+
   lines = lines.filter((l) => {
     if (looksLikeIsoDateLine(l)) return false;
     if (riaTimePrefix.test(l)) return false;
-
-    // шире, чем было: удаляем любую строку, где есть "(обновлено:"
     if (/\(обновлено:/i.test(l)) return false;
-
     if (/^Коллаж\b/i.test(l)) return false;
-    if (/РИА Новости,\s*\d+/i.test(l)) return false; // "РИА Новости, 1920, ..."
-    if (/- РИА Новости/i.test(l)) return false; // заголовок с брендом
-
+    if (/РИА Новости,\s*\d+/i.test(l)) return false;
+    if (/- РИА Новости/i.test(l)) return false;
     return true;
   });
 
-  // 2) Убираем URL внутри строк
   lines = lines
     .map(stripUrlsInsideLine)
     .map(collapseSpacesLine)
     .filter(Boolean);
 
-  // 3) Убираем строку == URL статьи
   if (url) {
     const u = url.trim();
     lines = lines.filter((l) => l !== u);
   }
 
-  // 4) Убираем дубли первой строки (часто заголовок повторяется)
-  if (lines.length >= 2 && lines[0] === lines[1]) {
-    lines.splice(1, 1);
-  }
+  if (lines.length >= 2 && lines[0] === lines[1]) lines.splice(1, 1);
 
-  // 5) Срезаем футер РИА (контакты/копирайт)
   lines = cutFromFirstFooterMarker(lines);
-
-  // 6) Удаляем блоки тегов (пачки коротких строк)
   lines = removeTagBlocks(lines, 80);
 
-  // 7) Иногда остаются 1-2 тега сразу после заголовка — уберём до 6 подряд tag-lines,
-  // но только в первых 15 строках и если они реально "короткие".
+  // уберём до 6 коротких тегов подряд в начале (если просочились)
   {
     const limit = Math.min(lines.length, 15);
     const cleaned = [];
@@ -170,24 +150,77 @@ function normalizeRia(text, url) {
       }
       cleaned.push(l);
     }
-
-    // добавляем хвост после limit без изменений (там tags обычно уже нет)
     lines = cleaned.concat(lines.slice(limit));
   }
 
-  // 8) Финальная фильтрация мусорных строк
   lines = lines.filter((l) => {
     if (!l) return false;
     if (letterRatioLow(l)) return false;
-    // телефон
     if (/^\+?\d[\d\s()-]{6,}$/.test(l)) return false;
-    // email
     if (/@/.test(l) && /rian\.ru/i.test(l)) return false;
     return true;
   });
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/* ---------------- EuroNews ---------------- */
+
+function normalizeEuronews(text, url) {
+  let lines = (text || "")
+    .split(/\r?\n/)
+    .map(collapseSpacesLine)
+    .filter(Boolean);
+
+  // убрать URL строки/внутри строки
+  lines = lines
+    .map(stripUrlsInsideLine)
+    .map(collapseSpacesLine)
+    .filter(Boolean);
+
+  if (url) {
+    const u = url.trim();
+    lines = lines.filter((l) => l !== u);
+  }
+
+  // 1) убрать шапку "Published on" + следующую строку с датой
+  // Published on
+  // 01/03/2026 - 15:00 GMT+1
+  if (lines[0]?.toLowerCase() === "published on") {
+    lines.shift();
+    if (lines[0] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[0])) {
+      lines.shift();
+    }
+  }
+
+  // иногда "Published on" встречается не первой строкой (редко) — чистим в первых 10 строках
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    if (lines[i]?.toLowerCase() === "published on") {
+      // вырезаем i и i+1 если там дата
+      lines.splice(i, 1);
+      if (lines[i] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[i])) {
+        lines.splice(i, 1);
+      }
+      break;
+    }
+  }
+
+  // 2) убрать рекламные вставки
+  // "ADVERTISEMENT", "ADVE", "AD", "ADVERTISEMENT:"
+  const isAdLine = (l) => {
+    const u = (l || "").trim().toUpperCase();
+    if (u === "AD") return true;
+    if (u === "ADVE") return true;
+    if (u.startsWith("ADVERTISEMENT")) return true;
+    return false;
+  };
+  lines = lines.filter((l) => !isAdLine(l));
+
+  // 3) финальная нормализация
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/* ---------------- Generic ---------------- */
 
 function normalizeGeneric(text, url) {
   let lines = (text || "")
@@ -205,6 +238,8 @@ function normalizeGeneric(text, url) {
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/* ---------------- Fetch/Extract ---------------- */
 
 async function fetchHtml(url) {
   const controller = new AbortController();
@@ -299,10 +334,10 @@ async function main() {
       const html = await fetchHtml(url);
       const { content_html, content_text_raw } = extractReadable(html, url);
 
-      let content_text =
-        source_id === "ria"
-          ? normalizeRia(content_text_raw, url)
-          : normalizeGeneric(content_text_raw, url);
+      let content_text;
+      if (source_id === "ria") content_text = normalizeRia(content_text_raw, url);
+      else if (source_id === "euronews") content_text = normalizeEuronews(content_text_raw, url);
+      else content_text = normalizeGeneric(content_text_raw, url);
 
       content_text = clampText(content_text, MAX_TEXT_LEN);
 
