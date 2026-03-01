@@ -5,33 +5,30 @@ on:
   schedule:
     - cron: "*/5 * * * *" # каждые 5 минут
 
-permissions:
-  contents: read
-
-concurrency:
-  group: fetch-rss-content
-  cancel-in-progress: true
-
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BATCH_LIMIT: "50"
+      MIN_TEXT_LEN: "400"
+      MAX_TEXT_LEN: "60000"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
       - name: Install deps
-        run: npm ci --no-audit --no-fund
+        run: npm ci
 
-      - name: Fetch content batch
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          BATCH_LIMIT: "50"
+      - name: Run content fetcher
         run: node scripts/fetch-rss-content.mjs
