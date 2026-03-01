@@ -8,7 +8,11 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const BATCH_LIMIT = Number(process.env.BATCH_LIMIT || "50");
 const MAX_TEXT_LEN = Number(process.env.MAX_TEXT_LEN || "60000");
+
+// общий минимум (для всех источников, кроме RIA)
 const MIN_TEXT_LEN = Number(process.env.MIN_TEXT_LEN || "400");
+// минимум только для RIA (чтобы короткие заметки проходили)
+const MIN_TEXT_LEN_RIA = Number(process.env.MIN_TEXT_LEN_RIA || "250");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -76,9 +80,6 @@ function removeTagBlocks(lines, maxScan = 60) {
       const blockLen = j - i;
       const blockChars = lines.slice(i, j).join(" ").length;
 
-      // удаляем только если блок:
-      // - >= 5 строк
-      // - и суммарно <= 180 символов (похоже на рубрики/теги)
       if (blockLen >= 5 && blockChars <= 180) {
         i = j;
         continue;
@@ -174,7 +175,6 @@ function normalizeEuronews(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
-  // "Published on" + дата
   if (lines[0]?.toLowerCase() === "published on") {
     lines.shift();
     if (lines[0] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[0])) {
@@ -339,6 +339,7 @@ async function main() {
     SERVICE_ROLE_PREFIX: (SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 6),
     BATCH_LIMIT,
     MIN_TEXT_LEN,
+    MIN_TEXT_LEN_RIA,
     MAX_TEXT_LEN
   });
 
@@ -380,15 +381,17 @@ async function main() {
 
       content_text = clampText(content_text, MAX_TEXT_LEN);
 
-      if (!content_text || content_text.length < MIN_TEXT_LEN) {
+      const minLen = source_id === "ria" ? MIN_TEXT_LEN_RIA : MIN_TEXT_LEN;
+
+      if (!content_text || content_text.length < minLen) {
         await setStatus(
           id,
           "error",
           "",
           "",
-          `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${(content_text || "").length})`
+          `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${(content_text || "").length}, min_len=${minLen})`
         );
-        console.log(`error: ${source_id} ${id} too short`);
+        console.log(`error: ${source_id} ${id} too short (len=${(content_text || "").length}, min=${minLen})`);
         continue;
       }
 
