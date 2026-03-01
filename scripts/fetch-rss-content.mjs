@@ -151,7 +151,6 @@ function normalizeRia(text, url) {
   let cleaned = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
   // предохранитель: если чистка "убила" текст — вернём raw
-  // (у тебя raw_len 2k-6k, а cleaned становился слишком маленьким)
   if (cleaned.length < 300 && raw.length > 800) cleaned = raw;
 
   return cleaned;
@@ -290,4 +289,127 @@ function extractFromJsonLdArticleBody(html, url) {
 
     const stack = Array.isArray(parsed) ? parsed : [parsed];
     for (const node of stack) {
-      if (!node
+      if (!node) continue;
+
+      const candidates = [];
+      if (Array.isArray(node["@graph"])) candidates.push(...node["@graph"]);
+      candidates.push(node);
+
+      for (const c of candidates) {
+        const body = c?.articleBody;
+        if (typeof body === "string" && body.trim().length > 0) bodies.push(body.trim());
+      }
+    }
+  }
+
+  const best = bodies.sort((a, b) => b.length - a.length)[0] || "";
+  return { content_html: "", content_text_raw: best };
+}
+
+/* ---------------- Save ---------------- */
+
+async function setStatus(id, status, content_html = "", content_text = "", error = "") {
+  const payload = {
+    p_id: id,
+    p_status: status,
+    p_content_html: content_html,
+    p_content_text: content_text,
+    p_error: (error || "").slice(0, 500)
+  };
+
+  const { error: saveErr } = await supabase.rpc("set_news_item_content", payload);
+  if (saveErr) {
+    console.error("set_news_item_content failed", {
+      id,
+      status,
+      message: saveErr.message,
+      details: saveErr.details,
+      hint: saveErr.hint,
+      code: saveErr.code
+    });
+    throw saveErr;
+  }
+}
+
+/* ---------------- Main ---------------- */
+
+async function main() {
+  console.log("env", {
+    SUPABASE_URL,
+    SERVICE_ROLE_PREFIX: (SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 6),
+    BATCH_LIMIT,
+    MIN_TEXT_LEN,
+    MAX_TEXT_LEN
+  });
+
+  const limit = Math.min(Math.max(BATCH_LIMIT, 1), 500);
+
+  const { data: items, error } = await supabase.rpc("fetch_next_news_items_for_content", {
+    p_limit: limit
+  });
+  if (error) throw error;
+
+  if (!items || items.length === 0) {
+    console.log("No items to fetch.");
+    return;
+  }
+
+  console.log(`Fetched batch: ${items.length}`);
+
+  for (const it of items) {
+    const { id, url, source_id } = it;
+
+    try {
+      const html = await fetchHtml(url);
+
+      // 1) Readability
+      let { content_html, content_text_raw } = extractReadable(html, url);
+
+      // 2) fallback RIA: JSON-LD articleBody если readability дал мало
+      if (source_id === "ria" && (!content_text_raw || content_text_raw.trim().length < 200)) {
+        const fb = extractFromJsonLdArticleBody(html, url);
+        if (fb.content_text_raw && fb.content_text_raw.length > (content_text_raw || "").length) {
+          content_text_raw = fb.content_text_raw;
+        }
+      }
+
+      let content_text;
+      if (source_id === "ria") content_text = normalizeRia(content_text_raw, url);
+      else if (source_id === "euronews") content_text = normalizeEuronews(content_text_raw, url);
+      else content_text = normalizeGeneric(content_text_raw, url);
+
+      content_text = clampText(content_text, MAX_TEXT_LEN);
+
+      if (!content_text || content_text.length < MIN_TEXT_LEN) {
+        await setStatus(
+          id,
+          "error",
+          "",
+          "",
+          `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${(content_text || "").length})`
+        );
+        console.log(`error: ${source_id} ${id} too short`);
+        continue;
+      }
+
+      await setStatus(id, "ok", content_html || "", content_text, "");
+      console.log(`ok: ${source_id} ${id} len=${content_text.length}`);
+    } catch (e) {
+      const msg = e?.message ? e.message : String(e);
+
+      if (msg.includes("HTTP 403") || e?.code === 403) {
+        await setStatus(id, "blocked_403", "", "", "HTTP 403");
+        console.log(`blocked_403: ${source_id} ${id}`);
+        continue;
+      }
+
+      await setStatus(id, "error", "", "", msg);
+      console.log(`error: ${source_id} ${id} ${msg}`);
+    }
+  }
+}
+
+main().catch((e) => {
+  console.error("FATAL", e);
+  process.exit(1);
+});
