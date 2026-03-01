@@ -9,10 +9,12 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BATCH_LIMIT = Number(process.env.BATCH_LIMIT || "50");
 const MAX_TEXT_LEN = Number(process.env.MAX_TEXT_LEN || "60000");
 
-// общий минимум (для всех источников, кроме RIA)
+// общий минимум (для всех источников, кроме тех, у кого отдельный порог)
 const MIN_TEXT_LEN = Number(process.env.MIN_TEXT_LEN || "400");
 // минимум только для RIA (чтобы короткие заметки проходили)
 const MIN_TEXT_LEN_RIA = Number(process.env.MIN_TEXT_LEN_RIA || "250");
+// минимум только для Euronews (чтобы короткие заметки проходили)
+const MIN_TEXT_LEN_EURONEWS = Number(process.env.MIN_TEXT_LEN_EURONEWS || "250");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -340,6 +342,7 @@ async function main() {
     BATCH_LIMIT,
     MIN_TEXT_LEN,
     MIN_TEXT_LEN_RIA,
+    MIN_TEXT_LEN_EURONEWS,
     MAX_TEXT_LEN
   });
 
@@ -381,7 +384,10 @@ async function main() {
 
       content_text = clampText(content_text, MAX_TEXT_LEN);
 
-      const minLen = source_id === "ria" ? MIN_TEXT_LEN_RIA : MIN_TEXT_LEN;
+      const minLen =
+        source_id === "ria" ? MIN_TEXT_LEN_RIA :
+        source_id === "euronews" ? MIN_TEXT_LEN_EURONEWS :
+        MIN_TEXT_LEN;
 
       if (!content_text || content_text.length < minLen) {
         await setStatus(
