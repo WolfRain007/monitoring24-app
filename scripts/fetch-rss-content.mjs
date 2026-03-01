@@ -46,7 +46,7 @@ function letterRatioLow(line) {
   return letters / effective < 0.25 && l.length > 30;
 }
 
-/* ---------------- RIA ---------------- */
+/* ---------------- RIA normalizer ---------------- */
 
 function isProbablyTagLine(l) {
   if (!l) return false;
@@ -163,7 +163,7 @@ function normalizeRia(text, url) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/* ---------------- EuroNews ---------------- */
+/* ---------------- EuroNews normalizer ---------------- */
 
 function normalizeEuronews(text, url) {
   let lines = (text || "")
@@ -181,14 +181,13 @@ function normalizeEuronews(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
-  // убрать блок "Published on" + дату (обычно первые 2 строки)
+  // убрать блок "Published on" + дату
   if (lines[0]?.toLowerCase() === "published on") {
     lines.shift();
     if (lines[0] && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{1,2}:\d{2}/.test(lines[0])) {
       lines.shift();
     }
   } else {
-    // иногда попадается в первых 10 строках
     for (let i = 0; i < Math.min(lines.length, 10); i++) {
       if (lines[i]?.toLowerCase() === "published on") {
         lines.splice(i, 1);
@@ -212,7 +211,7 @@ function normalizeEuronews(text, url) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/* ---------------- Generic ---------------- */
+/* ---------------- Generic normalizer ---------------- */
 
 function normalizeGeneric(text, url) {
   let lines = (text || "")
@@ -231,11 +230,11 @@ function normalizeGeneric(text, url) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/* ---------------- Fetch/Extract ---------------- */
+/* ---------------- Fetch ---------------- */
 
 async function fetchHtml(url) {
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15000);
+  const t = setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch(url, {
@@ -245,8 +244,7 @@ async function fetchHtml(url) {
       headers: {
         "user-agent":
           "Mozilla/5.0 (compatible; monitoring24-app/1.0; +https://github.com/WolfRain007/monitoring24-app)",
-        accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       }
     });
 
@@ -267,6 +265,8 @@ async function fetchHtml(url) {
     clearTimeout(t);
   }
 }
+
+/* ---------------- Extractors ---------------- */
 
 function extractReadable(html, url) {
   const dom = new JSDOM(html, { url });
@@ -291,6 +291,47 @@ function extractReadable(html, url) {
   return { content_html, content_text_raw };
 }
 
+function extractFromJsonLdArticleBody(html, url) {
+  const dom = new JSDOM(html, { url });
+  const doc = dom.window.document;
+
+  const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+  const bodies = [];
+
+  for (const s of scripts) {
+    const raw = (s.textContent || "").trim();
+    if (!raw) continue;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+
+    const stack = Array.isArray(parsed) ? parsed : [parsed];
+    for (const node of stack) {
+      if (!node) continue;
+
+      // иногда бывает { "@graph": [...] }
+      const candidates = [];
+      if (Array.isArray(node["@graph"])) candidates.push(...node["@graph"]);
+      candidates.push(node);
+
+      for (const c of candidates) {
+        const body = c?.articleBody;
+        if (typeof body === "string" && body.trim().length > 0) bodies.push(body.trim());
+      }
+    }
+  }
+
+  const best = bodies.sort((a, b) => b.length - a.length)[0] || "";
+  return {
+    content_html: "", // у JSON-LD обычно нет html
+    content_text_raw: best
+  };
+}
+
 async function setStatus(id, status, content_html = "", content_text = "", error = "") {
   const payload = {
     p_id: id,
@@ -300,7 +341,7 @@ async function setStatus(id, status, content_html = "", content_text = "", error
     p_error: (error || "").slice(0, 500)
   };
 
-  const { data, error: saveErr } = await supabase.rpc("set_news_item_content", payload);
+  const { error: saveErr } = await supabase.rpc("set_news_item_content", payload);
 
   if (saveErr) {
     console.error("set_news_item_content failed", {
@@ -313,8 +354,6 @@ async function setStatus(id, status, content_html = "", content_text = "", error
     });
     throw saveErr;
   }
-
-  return data;
 }
 
 async function main() {
@@ -345,7 +384,18 @@ async function main() {
 
     try {
       const html = await fetchHtml(url);
-      const { content_html, content_text_raw } = extractReadable(html, url);
+
+      // 1) Readability
+      let { content_html, content_text_raw } = extractReadable(html, url);
+
+      // 2) Fallback для RIA: JSON-LD articleBody
+      if (source_id === "ria" && (!content_text_raw || content_text_raw.trim().length < 200)) {
+        const fb = extractFromJsonLdArticleBody(html, url);
+        if (fb.content_text_raw && fb.content_text_raw.length > (content_text_raw || "").length) {
+          content_text_raw = fb.content_text_raw;
+          // content_html оставляем из readability (если был), иначе пусто
+        }
+      }
 
       let content_text;
       if (source_id === "ria") content_text = normalizeRia(content_text_raw, url);
@@ -355,13 +405,19 @@ async function main() {
       content_text = clampText(content_text, MAX_TEXT_LEN);
 
       if (!content_text || content_text.length < MIN_TEXT_LEN) {
-        await setStatus(id, "error", "", "", "Extracted content too short/empty");
+        await setStatus(
+          id,
+          "error",
+          "",
+          "",
+          `Extracted content too short/empty (raw_len=${(content_text_raw || "").length})`
+        );
         console.log(`error: ${source_id} ${id} Extracted content too short/empty`);
         continue;
       }
 
-      await setStatus(id, "ok", content_html, content_text, "");
-      console.log(`ok: ${source_id} ${id}`);
+      await setStatus(id, "ok", content_html || "", content_text, "");
+      console.log(`ok: ${source_id} ${id} len=${content_text.length}`);
     } catch (e) {
       const msg = e?.message ? e.message : String(e);
 
