@@ -9,17 +9,14 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BATCH_LIMIT = Number(process.env.BATCH_LIMIT || "50");
 const MAX_TEXT_LEN = Number(process.env.MAX_TEXT_LEN || "60000");
 
-// общий минимум (для всех источников, кроме тех, у кого отдельный порог)
 const MIN_TEXT_LEN = Number(process.env.MIN_TEXT_LEN || "400");
-// минимум только для RIA
 const MIN_TEXT_LEN_RIA = Number(process.env.MIN_TEXT_LEN_RIA || "250");
-// минимум только для Euronews
 const MIN_TEXT_LEN_EURONEWS = Number(process.env.MIN_TEXT_LEN_EURONEWS || "250");
 
-// ретраи
 const MAX_FETCH_ATTEMPTS = Number(process.env.MAX_FETCH_ATTEMPTS || "6");
-// карантин для 403 (в днях)
-const BLOCKED_403_QUARANTINE_DAYS = Number(process.env.BLOCKED_403_QUARANTINE_DAYS || "7");
+const DEFAULT_BLOCKED_403_QUARANTINE_DAYS = Number(
+  process.env.DEFAULT_BLOCKED_403_QUARANTINE_DAYS || "7"
+);
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -125,7 +122,6 @@ function normalizeRia(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
-  // футер режем только в хвосте
   {
     const footerMarkers = [
       /^РИА Новости$/i,
@@ -153,8 +149,6 @@ function normalizeRia(text, url) {
   });
 
   let cleaned = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-
-  // предохранитель: если чистка "убила" текст — вернём raw
   if (cleaned.length < 300 && raw.length > 800) cleaned = raw;
 
   return cleaned;
@@ -218,8 +212,6 @@ function addSecondsToNow(sec) {
 }
 
 function nextRetryIso(attempts) {
-  // attempts: 1..N
-  // 2m, 5m, 15m, 1h, 6h, 24h (cap)
   const scheduleSec = [120, 300, 900, 3600, 21600, 86400];
   const idx = Math.min(Math.max(attempts, 1), scheduleSec.length) - 1;
   return addSecondsToNow(scheduleSec[idx]);
@@ -376,12 +368,12 @@ async function main() {
     MIN_TEXT_LEN_EURONEWS,
     MAX_TEXT_LEN,
     MAX_FETCH_ATTEMPTS,
-    BLOCKED_403_QUARANTINE_DAYS
+    DEFAULT_BLOCKED_403_QUARANTINE_DAYS
   });
 
   const limit = Math.min(Math.max(BATCH_LIMIT, 1), 500);
 
-  const { data: items, error } = await supabase.rpc("fetch_next_news_items_for_content", {
+  const { data: items, error } = await supabase.rpc("fetch_next_news_items_for_content_v2", {
     p_limit: limit
   });
   if (error) throw error;
@@ -396,16 +388,22 @@ async function main() {
   for (const it of items) {
     const { id, url, source_id } = it;
 
-    // attempts может не приходить из RPC (зависит от твоей функции)
-    const attempts = Number(it?.content_fetch_attempts || 0);
+    const mode = String(it?.content_fetch_mode || "html");
+    const qDays = Number(it?.blocked_403_quarantine_days || DEFAULT_BLOCKED_403_QUARANTINE_DAYS);
+
+    // attempts может не приходить из RPC (в v2 сейчас не возвращаем), поэтому берём 0
+    const attempts = 0;
+
+    // safety: если вдруг попало disabled — не работаем
+    if (mode === "disabled") {
+      continue;
+    }
 
     try {
       const html = await fetchHtml(url);
 
-      // 1) Readability
       let { content_html, content_text_raw } = extractReadable(html, url);
 
-      // 2) fallback RIA: JSON-LD articleBody если readability дал мало
       if (source_id === "ria" && (!content_text_raw || content_text_raw.trim().length < 200)) {
         const fb = extractFromJsonLdArticleBody(html, url);
         if (fb.content_text_raw && fb.content_text_raw.length > (content_text_raw || "").length) {
@@ -425,7 +423,6 @@ async function main() {
         source_id === "euronews" ? MIN_TEXT_LEN_EURONEWS :
         MIN_TEXT_LEN;
 
-      // "слишком короткий контент" — ожидаемая фильтрация, не ошибка
       if (!content_text || content_text.length < minLen) {
         await setStatus(
           id,
@@ -436,9 +433,7 @@ async function main() {
           200,
           null
         );
-        console.log(
-          `skipped_too_short: ${source_id} ${id} (len=${(content_text || "").length}, min=${minLen})`
-        );
+        console.log(`skipped_too_short: ${source_id} ${id}`);
         continue;
       }
 
@@ -448,15 +443,13 @@ async function main() {
       const msg = e?.message ? e.message : String(e);
       const httpStatus = Number(e?.http_status || 0) || null;
 
-      // 403 — блокировка: ставим карантин, проверяем редко
       if (httpStatus === 403 || msg.includes("HTTP 403")) {
-        const nextIso = addSecondsToNow(BLOCKED_403_QUARANTINE_DAYS * 24 * 3600);
+        const nextIso = addSecondsToNow(qDays * 24 * 3600);
         await setStatus(id, "blocked_403", "", "", "HTTP 403", 403, nextIso);
         console.log(`blocked_403: ${source_id} ${id} next=${nextIso}`);
         continue;
       }
 
-      // 5xx — ретрай
       if (httpStatus && httpStatus >= 500 && httpStatus <= 599) {
         const nextIso = nextRetryIso(attempts + 1);
         const finalStatus = attempts + 1 >= MAX_FETCH_ATTEMPTS ? "error" : "retry_later";
@@ -469,13 +462,10 @@ async function main() {
           httpStatus,
           finalStatus === "retry_later" ? nextIso : null
         );
-        console.log(
-          `${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`
-        );
+        console.log(`${finalStatus}: ${source_id} ${id} ${msg}`);
         continue;
       }
 
-      // типичные сетевые ошибки undici + AbortController timeout
       const isNetworkish =
         msg === "fetch failed" ||
         e?.name === "AbortError" ||
@@ -493,13 +483,10 @@ async function main() {
           httpStatus,
           finalStatus === "retry_later" ? nextIso : null
         );
-        console.log(
-          `${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`
-        );
+        console.log(`${finalStatus}: ${source_id} ${id} ${msg}`);
         continue;
       }
 
-      // 404/410 и прочее — финальная ошибка (либо можно сделать skipped_gone)
       await setStatus(id, "error", "", "", msg, httpStatus, null);
       console.log(`error: ${source_id} ${id} ${msg}`);
     }
