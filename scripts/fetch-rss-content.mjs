@@ -399,6 +399,62 @@ async function main() {
       continue;
     }
 
+    // rss_only: НЕ ходим в интернет. Берём уже сохранённый текст из RSS ingest (content_text/content_html)
+    if (mode === "rss_only") {
+      try {
+        let raw = String(it?.content_text || "").trim();
+
+        if (!raw) {
+          const html = String(it?.content_html || "").trim();
+          raw = html
+            ? htmlToText(html, {
+                wordwrap: false,
+                preserveNewlines: true,
+                selectors: [
+                  { selector: "a", options: { ignoreHref: true } },
+                  { selector: "img", format: "skip" }
+                ]
+              })
+            : "";
+        }
+
+        let content_text;
+        if (source_id === "ria") content_text = normalizeRia(raw, url);
+        else if (source_id === "euronews") content_text = normalizeEuronews(raw, url);
+        else content_text = normalizeGeneric(raw, url);
+
+        content_text = clampText(content_text, MAX_TEXT_LEN);
+
+        const minLen =
+          source_id === "ria" ? MIN_TEXT_LEN_RIA :
+          source_id === "euronews" ? MIN_TEXT_LEN_EURONEWS :
+          MIN_TEXT_LEN;
+
+        if (!content_text || content_text.length < minLen) {
+          await setStatus(
+            id,
+            "skipped_too_short",
+            "",
+            "",
+            `RSS-only: content too short/empty (raw_len=${raw.length}, cleaned_len=${(content_text || "").length}, min_len=${minLen})`,
+            200,
+            null
+          );
+          console.log(`skipped_too_short(rss_only): ${source_id} ${id}`);
+          continue;
+        }
+
+        await setStatus(id, "ok", "", content_text, "", 200, null);
+        console.log(`ok(rss_only): ${source_id} ${id} len=${content_text.length}`);
+        continue;
+      } catch (e) {
+        const msg = e?.message ? e.message : String(e);
+        await setStatus(id, "error", "", "", `rss_only failed: ${msg}`, null, null);
+        console.log(`error(rss_only): ${source_id} ${id} ${msg}`);
+        continue;
+      }
+    }
+
     try {
       const html = await fetchHtml(url);
 
