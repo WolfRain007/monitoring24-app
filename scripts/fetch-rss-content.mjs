@@ -18,6 +18,8 @@ const MIN_TEXT_LEN_EURONEWS = Number(process.env.MIN_TEXT_LEN_EURONEWS || "250")
 
 // ретраи
 const MAX_FETCH_ATTEMPTS = Number(process.env.MAX_FETCH_ATTEMPTS || "6");
+// карантин для 403 (в днях)
+const BLOCKED_403_QUARANTINE_DAYS = Number(process.env.BLOCKED_403_QUARANTINE_DAYS || "7");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -123,6 +125,7 @@ function normalizeRia(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
+  // футер режем только в хвосте
   {
     const footerMarkers = [
       /^РИА Новости$/i,
@@ -151,6 +154,7 @@ function normalizeRia(text, url) {
 
   let cleaned = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
+  // предохранитель: если чистка "убила" текст — вернём raw
   if (cleaned.length < 300 && raw.length > 800) cleaned = raw;
 
   return cleaned;
@@ -371,7 +375,8 @@ async function main() {
     MIN_TEXT_LEN_RIA,
     MIN_TEXT_LEN_EURONEWS,
     MAX_TEXT_LEN,
-    MAX_FETCH_ATTEMPTS
+    MAX_FETCH_ATTEMPTS,
+    BLOCKED_403_QUARANTINE_DAYS
   });
 
   const limit = Math.min(Math.max(BATCH_LIMIT, 1), 500);
@@ -397,8 +402,10 @@ async function main() {
     try {
       const html = await fetchHtml(url);
 
+      // 1) Readability
       let { content_html, content_text_raw } = extractReadable(html, url);
 
+      // 2) fallback RIA: JSON-LD articleBody если readability дал мало
       if (source_id === "ria" && (!content_text_raw || content_text_raw.trim().length < 200)) {
         const fb = extractFromJsonLdArticleBody(html, url);
         if (fb.content_text_raw && fb.content_text_raw.length > (content_text_raw || "").length) {
@@ -418,6 +425,7 @@ async function main() {
         source_id === "euronews" ? MIN_TEXT_LEN_EURONEWS :
         MIN_TEXT_LEN;
 
+      // "слишком короткий контент" — ожидаемая фильтрация, не ошибка
       if (!content_text || content_text.length < minLen) {
         await setStatus(
           id,
@@ -440,10 +448,11 @@ async function main() {
       const msg = e?.message ? e.message : String(e);
       const httpStatus = Number(e?.http_status || 0) || null;
 
-      // 403 — блокировка, это не ретраим часто
+      // 403 — блокировка: ставим карантин, проверяем редко
       if (httpStatus === 403 || msg.includes("HTTP 403")) {
-        await setStatus(id, "blocked_403", "", "", "HTTP 403", 403, null);
-        console.log(`blocked_403: ${source_id} ${id}`);
+        const nextIso = addSecondsToNow(BLOCKED_403_QUARANTINE_DAYS * 24 * 3600);
+        await setStatus(id, "blocked_403", "", "", "HTTP 403", 403, nextIso);
+        console.log(`blocked_403: ${source_id} ${id} next=${nextIso}`);
         continue;
       }
 
@@ -451,8 +460,18 @@ async function main() {
       if (httpStatus && httpStatus >= 500 && httpStatus <= 599) {
         const nextIso = nextRetryIso(attempts + 1);
         const finalStatus = attempts + 1 >= MAX_FETCH_ATTEMPTS ? "error" : "retry_later";
-        await setStatus(id, finalStatus, "", "", msg, httpStatus, finalStatus === "retry_later" ? nextIso : null);
-        console.log(`${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`);
+        await setStatus(
+          id,
+          finalStatus,
+          "",
+          "",
+          msg,
+          httpStatus,
+          finalStatus === "retry_later" ? nextIso : null
+        );
+        console.log(
+          `${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`
+        );
         continue;
       }
 
@@ -465,12 +484,22 @@ async function main() {
       if (isNetworkish) {
         const nextIso = nextRetryIso(attempts + 1);
         const finalStatus = attempts + 1 >= MAX_FETCH_ATTEMPTS ? "error" : "retry_later";
-        await setStatus(id, finalStatus, "", "", msg, httpStatus, finalStatus === "retry_later" ? nextIso : null);
-        console.log(`${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`);
+        await setStatus(
+          id,
+          finalStatus,
+          "",
+          "",
+          msg,
+          httpStatus,
+          finalStatus === "retry_later" ? nextIso : null
+        );
+        console.log(
+          `${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`
+        );
         continue;
       }
 
-      // 404/410 и прочее — обычно финальная ошибка (либо отдельный skipped_gone)
+      // 404/410 и прочее — финальная ошибка (либо можно сделать skipped_gone)
       await setStatus(id, "error", "", "", msg, httpStatus, null);
       console.log(`error: ${source_id} ${id} ${msg}`);
     }
