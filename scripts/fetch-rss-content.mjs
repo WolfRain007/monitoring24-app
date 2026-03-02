@@ -11,10 +11,13 @@ const MAX_TEXT_LEN = Number(process.env.MAX_TEXT_LEN || "60000");
 
 // общий минимум (для всех источников, кроме тех, у кого отдельный порог)
 const MIN_TEXT_LEN = Number(process.env.MIN_TEXT_LEN || "400");
-// минимум только для RIA (чтобы короткие заметки проходили)
+// минимум только для RIA
 const MIN_TEXT_LEN_RIA = Number(process.env.MIN_TEXT_LEN_RIA || "250");
-// минимум только для Euronews (чтобы короткие заметки проходили)
+// минимум только для Euronews
 const MIN_TEXT_LEN_EURONEWS = Number(process.env.MIN_TEXT_LEN_EURONEWS || "250");
+
+// ретраи
+const MAX_FETCH_ATTEMPTS = Number(process.env.MAX_FETCH_ATTEMPTS || "6");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -68,7 +71,6 @@ function isProbablyTagLine(l) {
   return true;
 }
 
-// мягко удаляем только реально "список рубрик"
 function removeTagBlocks(lines, maxScan = 60) {
   const scanLimit = Math.min(lines.length, maxScan);
 
@@ -103,7 +105,6 @@ function normalizeRia(text, url) {
 
   const riaTimePrefix = /^\d{1,2}:\d{2}\s+\d{2}\.\d{2}\.\d{4}/;
 
-  // мягкая фильтрация служебных строк
   lines = lines.filter((l) => {
     if (looksLikeIsoDateLine(l)) return false;
     if (riaTimePrefix.test(l)) return false;
@@ -122,7 +123,6 @@ function normalizeRia(text, url) {
     lines = lines.filter((l) => l !== u);
   }
 
-  // футер режем только в хвосте (последние 25 строк)
   {
     const footerMarkers = [
       /^РИА Новости$/i,
@@ -141,10 +141,8 @@ function normalizeRia(text, url) {
     }
   }
 
-  // теги/рубрики — только если это реально список
   lines = removeTagBlocks(lines, 60);
 
-  // лёгкая финальная фильтрация
   lines = lines.filter((l) => {
     if (!l) return false;
     if (letterRatioLow(l)) return false;
@@ -153,7 +151,6 @@ function normalizeRia(text, url) {
 
   let cleaned = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
-  // предохранитель: если чистка "убила" текст — вернём raw
   if (cleaned.length < 300 && raw.length > 800) cleaned = raw;
 
   return cleaned;
@@ -210,6 +207,20 @@ function normalizeGeneric(text, url) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/* ---------------- Backoff ---------------- */
+
+function addSecondsToNow(sec) {
+  return new Date(Date.now() + sec * 1000).toISOString();
+}
+
+function nextRetryIso(attempts) {
+  // attempts: 1..N
+  // 2m, 5m, 15m, 1h, 6h, 24h (cap)
+  const scheduleSec = [120, 300, 900, 3600, 21600, 86400];
+  const idx = Math.min(Math.max(attempts, 1), scheduleSec.length) - 1;
+  return addSecondsToNow(scheduleSec[idx]);
+}
+
 /* ---------------- Fetch ---------------- */
 
 async function fetchHtml(url) {
@@ -230,14 +241,20 @@ async function fetchHtml(url) {
 
     if (res.status === 403) {
       const err = new Error("HTTP 403");
-      err.code = 403;
+      err.http_status = 403;
       throw err;
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status}`);
+      err.http_status = res.status;
+      throw err;
+    }
 
     const ct = res.headers.get("content-type") || "";
     if (!ct.includes("text/html") && !ct.startsWith("text/html")) {
-      throw new Error(`Non-HTML content-type: ${ct}`);
+      const err = new Error(`Non-HTML content-type: ${ct}`);
+      err.http_status = 200;
+      throw err;
     }
 
     return await res.text();
@@ -310,13 +327,23 @@ function extractFromJsonLdArticleBody(html, url) {
 
 /* ---------------- Save ---------------- */
 
-async function setStatus(id, status, content_html = "", content_text = "", error = "") {
+async function setStatus(
+  id,
+  status,
+  content_html = "",
+  content_text = "",
+  error = "",
+  http_status = null,
+  next_fetch_at_iso = null
+) {
   const payload = {
     p_id: id,
     p_status: status,
     p_content_html: content_html,
     p_content_text: content_text,
-    p_error: (error || "").slice(0, 500)
+    p_error: (error || "").slice(0, 500),
+    p_http_status: http_status,
+    p_next_fetch_at: next_fetch_at_iso
   };
 
   const { error: saveErr } = await supabase.rpc("set_news_item_content", payload);
@@ -343,7 +370,8 @@ async function main() {
     MIN_TEXT_LEN,
     MIN_TEXT_LEN_RIA,
     MIN_TEXT_LEN_EURONEWS,
-    MAX_TEXT_LEN
+    MAX_TEXT_LEN,
+    MAX_FETCH_ATTEMPTS
   });
 
   const limit = Math.min(Math.max(BATCH_LIMIT, 1), 500);
@@ -363,13 +391,14 @@ async function main() {
   for (const it of items) {
     const { id, url, source_id } = it;
 
+    // attempts может не приходить из RPC (зависит от твоей функции)
+    const attempts = Number(it?.content_fetch_attempts || 0);
+
     try {
       const html = await fetchHtml(url);
 
-      // 1) Readability
       let { content_html, content_text_raw } = extractReadable(html, url);
 
-      // 2) fallback RIA: JSON-LD articleBody если readability дал мало
       if (source_id === "ria" && (!content_text_raw || content_text_raw.trim().length < 200)) {
         const fb = extractFromJsonLdArticleBody(html, url);
         if (fb.content_text_raw && fb.content_text_raw.length > (content_text_raw || "").length) {
@@ -389,14 +418,15 @@ async function main() {
         source_id === "euronews" ? MIN_TEXT_LEN_EURONEWS :
         MIN_TEXT_LEN;
 
-      // ВАЖНО: "слишком короткий контент" — это не ошибка пайплайна, а ожидаемая фильтрация
       if (!content_text || content_text.length < minLen) {
         await setStatus(
           id,
           "skipped_too_short",
           "",
           "",
-          `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${(content_text || "").length}, min_len=${minLen})`
+          `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${(content_text || "").length}, min_len=${minLen})`,
+          200,
+          null
         );
         console.log(
           `skipped_too_short: ${source_id} ${id} (len=${(content_text || "").length}, min=${minLen})`
@@ -404,18 +434,44 @@ async function main() {
         continue;
       }
 
-      await setStatus(id, "ok", content_html || "", content_text, "");
+      await setStatus(id, "ok", content_html || "", content_text, "", 200, null);
       console.log(`ok: ${source_id} ${id} len=${content_text.length}`);
     } catch (e) {
       const msg = e?.message ? e.message : String(e);
+      const httpStatus = Number(e?.http_status || 0) || null;
 
-      if (msg.includes("HTTP 403") || e?.code === 403) {
-        await setStatus(id, "blocked_403", "", "", "HTTP 403");
+      // 403 — блокировка, это не ретраим часто
+      if (httpStatus === 403 || msg.includes("HTTP 403")) {
+        await setStatus(id, "blocked_403", "", "", "HTTP 403", 403, null);
         console.log(`blocked_403: ${source_id} ${id}`);
         continue;
       }
 
-      await setStatus(id, "error", "", "", msg);
+      // 5xx — ретрай
+      if (httpStatus && httpStatus >= 500 && httpStatus <= 599) {
+        const nextIso = nextRetryIso(attempts + 1);
+        const finalStatus = attempts + 1 >= MAX_FETCH_ATTEMPTS ? "error" : "retry_later";
+        await setStatus(id, finalStatus, "", "", msg, httpStatus, finalStatus === "retry_later" ? nextIso : null);
+        console.log(`${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`);
+        continue;
+      }
+
+      // типичные сетевые ошибки undici + AbortController timeout
+      const isNetworkish =
+        msg === "fetch failed" ||
+        e?.name === "AbortError" ||
+        /ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT/i.test(msg);
+
+      if (isNetworkish) {
+        const nextIso = nextRetryIso(attempts + 1);
+        const finalStatus = attempts + 1 >= MAX_FETCH_ATTEMPTS ? "error" : "retry_later";
+        await setStatus(id, finalStatus, "", "", msg, httpStatus, finalStatus === "retry_later" ? nextIso : null);
+        console.log(`${finalStatus}: ${source_id} ${id} ${msg} next=${finalStatus === "retry_later" ? nextIso : "-"}`);
+        continue;
+      }
+
+      // 404/410 и прочее — обычно финальная ошибка (либо отдельный skipped_gone)
+      await setStatus(id, "error", "", "", msg, httpStatus, null);
       console.log(`error: ${source_id} ${id} ${msg}`);
     }
   }
