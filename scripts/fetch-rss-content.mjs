@@ -389,15 +389,18 @@ async function main() {
         source_id === "euronews" ? MIN_TEXT_LEN_EURONEWS :
         MIN_TEXT_LEN;
 
+      // ВАЖНО: "слишком короткий контент" — это не ошибка пайплайна, а ожидаемая фильтрация
       if (!content_text || content_text.length < minLen) {
         await setStatus(
           id,
-          "error",
+          "skipped_too_short",
           "",
           "",
           `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${(content_text || "").length}, min_len=${minLen})`
         );
-        console.log(`error: ${source_id} ${id} too short (len=${(content_text || "").length}, min=${minLen})`);
+        console.log(
+          `skipped_too_short: ${source_id} ${id} (len=${(content_text || "").length}, min=${minLen})`
+        );
         continue;
       }
 
