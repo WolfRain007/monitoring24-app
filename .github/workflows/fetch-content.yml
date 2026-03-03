@@ -13,11 +13,26 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       BATCH_LIMIT: "50"
+      MAX_TEXT_LEN: "60000"
+
       MIN_TEXT_LEN: "400"
       MIN_TEXT_LEN_RIA: "250"
       MIN_TEXT_LEN_EURONEWS: "250"
-      MAX_TEXT_LEN: "60000"
+      MIN_TEXT_LEN_TASS: "250"
+
+      MAX_FETCH_ATTEMPTS: "6"
+      DEFAULT_BLOCKED_403_QUARANTINE_DAYS: "7"
+
+      ENABLE_EXTRACTOR_READABILITY: "1"
+      ENABLE_EXTRACTOR_JSONLD: "1"
+      ENABLE_EXTRACTOR_SELECTOR: "1"
+
+      # при необходимости можно будет точечно подкрутить селектор не меняя код
+      SELECTOR_TASS: "main article, article, [itemprop='articleBody'], .news-item, .tass-article, .tass-article__content, .text, .content"
+      SELECTOR_RIA: "article, [itemprop='articleBody'], .article__body, .article__text, .layout-article__content"
+      SELECTOR_EURONEWS: "article, [itemprop='articleBody'], .c-article-content, .article-content, .o-article__body"
 
     steps:
       - name: Checkout
