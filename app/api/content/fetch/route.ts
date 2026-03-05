@@ -329,6 +329,8 @@ function extractFromJsonLdArticleBody(html: string, url: string) {
 
 /* ---------------- Save via RPC ---------------- */
 
+/* ---------------- Save via RPC (V2) ---------------- */
+
 async function setStatus(
   id: string,
   status: string,
@@ -336,20 +338,28 @@ async function setStatus(
   content_text = "",
   error = "",
   http_status: number | null = null,
-  next_fetch_at_iso: string | null = null
+  next_fetch_at_iso: string | null = null,
+  extractor: string | null = null,
+  quality_score: number | null = null,
+  len_raw: number | null = null,
+  len_clean: number | null = null
 ) {
   const payload = {
     p_id: id,
     p_status: status,
-    p_content_html: content_html,
-    p_content_text: content_text,
+    p_content_html: content_html ?? "",
+    p_content_text: content_text ?? "",
     p_error: (error || "").slice(0, 500),
     p_http_status: http_status,
     p_next_fetch_at: next_fetch_at_iso,
+    p_extractor: extractor,
+    p_quality_score: quality_score,
+    p_len_raw: len_raw,
+    p_len_clean: len_clean,
   };
 
-  const { error: saveErr } = await supabase.rpc("set_news_item_content", payload);
-  if (saveErr) throw new Error(`set_news_item_content failed: ${saveErr.message}`);
+  const { error: saveErr } = await supabase.rpc("set_news_item_content_v2", payload);
+  if (saveErr) throw new Error(`set_news_item_content_v2 failed: ${saveErr.message}`);
 }
 
 export async function POST(req: Request) {
