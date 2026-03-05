@@ -468,6 +468,15 @@ function pickBestCandidate(candidates, source_id, minLen, url) {
 
 /* ---------------- Save ---------------- */
 
+function pickSupabaseErrorFields(err) {
+  return {
+    message: err?.message ?? null,
+    code: err?.code ?? null,
+    details: err?.details ?? null,
+    hint: err?.hint ?? null,
+  };
+}
+
 async function setStatusV1({
   id,
   status,
@@ -488,7 +497,12 @@ async function setStatusV1({
   };
 
   const { error: saveErr } = await supabase.rpc("set_news_item_content", payload);
-  if (saveErr) throw new Error(`set_news_item_content failed: ${saveErr.message}`);
+
+  if (saveErr) {
+    throw Object.assign(new Error(`set_news_item_content failed: ${saveErr.message}`), {
+      supabase: pickSupabaseErrorFields(saveErr),
+    });
+  }
 }
 
 async function setStatusV2({
@@ -519,22 +533,54 @@ async function setStatusV2({
   };
 
   const { error: saveErr } = await supabase.rpc("set_news_item_content_v2", payload);
-  if (saveErr) throw new Error(`set_news_item_content_v2 failed: ${saveErr.message}`);
+
+  if (saveErr) {
+    throw Object.assign(new Error(`set_news_item_content_v2 failed: ${saveErr.message}`), {
+      supabase: pickSupabaseErrorFields(saveErr),
+    });
+  }
 }
 
+/**
+ * ВАЖНО:
+ * - печатаем реальную причину, почему V2 не сработал
+ * - fallback на V1 делаем ТОЛЬКО если V2-функции реально нет
+ */
 async function setStatus(payload) {
+  const { id, status } = payload;
+
   try {
     await setStatusV2(payload);
+    return;
   } catch (e) {
     const msg = e?.message || String(e);
-    if (
-      msg.includes("set_news_item_content_v2") ||
-      msg.includes("function public.set_news_item_content_v2") ||
-      msg.includes("does not exist")
-    ) {
+
+    console.error(
+      "[setStatus] V2 failed",
+      JSON.stringify(
+        {
+          id,
+          status,
+          msg,
+          supabase: e?.supabase ?? null,
+        },
+        null,
+        2
+      )
+    );
+
+    const code = e?.supabase?.code || e?.code;
+    const isMissingFn =
+      code === "42883" || // undefined_function
+      msg.includes("does not exist") ||
+      msg.includes("function public.set_news_item_content_v2");
+
+    if (isMissingFn) {
+      console.error("[setStatus] fallback to V1 because V2 function is missing");
       await setStatusV1(payload);
       return;
     }
+
     throw e;
   }
 }
