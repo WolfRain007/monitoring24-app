@@ -753,25 +753,25 @@ async function main() {
       const msg = e?.message || String(e);
       const httpStatus = Number(e?.http_status || 0) || null;
 
-      if (httpStatus === 403 || msg.includes("HTTP 403")) {
-        const nextIso = addSecondsToNow(qDays * 24 * 3600);
-        await setStatus({
-          id,
-          status: "blocked_403",
-          content_html: "",
-          content_text: "",
-          error: "HTTP 403",
-          http_status: 403,
-          next_fetch_at: nextIso,
-          extractor: null,
-          quality_score: null,
-          len_raw: null,
-          len_clean: null,
-        });
-        results.blocked_403 = (results.blocked_403 || 0) + 1;
-        processed++;
-        continue;
-      }
+     if (httpStatus === 403 || msg.includes("HTTP 403")) {
+  const nextIso = addSecondsToNow(qDays * 24 * 3600);
+  await setStatus({
+    id,
+    status: "blocked_403",
+    content_html: "",
+    content_text: "",
+    error: "HTTP 403",
+    http_status: 403,
+    next_fetch_at: nextIso,
+    extractor: "http_get",
+    quality_score: 0,
+    len_raw: 0,
+    len_clean: 0,
+  });
+  results.blocked_403 = (results.blocked_403 || 0) + 1;
+  processed++;
+  continue;
+}
 
       const is5xx = httpStatus && httpStatus >= 500 && httpStatus <= 599;
       const isNetworkish =
