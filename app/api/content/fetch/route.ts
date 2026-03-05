@@ -233,8 +233,7 @@ async function fetchHtml(url: string) {
       redirect: "follow",
       signal: controller.signal,
       headers: {
-        "user-agent":
-          "Mozilla/5.0 (compatible; monitoring24-app/1.0; +https://monitoring24.info)",
+        "user-agent": "Mozilla/5.0 (compatible; monitoring24-app/1.0; +https://monitoring24.info)",
         accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
       // @ts-ignore
@@ -327,8 +326,6 @@ function extractFromJsonLdArticleBody(html: string, url: string) {
   return { content_html: "", content_text_raw: best };
 }
 
-/* ---------------- Save via RPC ---------------- */
-
 /* ---------------- Save via RPC (V2) ---------------- */
 
 async function setStatus(
@@ -374,10 +371,7 @@ export async function POST(req: Request) {
 
     const MIN_TEXT_LEN = numEnv("MIN_TEXT_LEN", DEFAULTS.MIN_TEXT_LEN);
     const MIN_TEXT_LEN_RIA = numEnv("MIN_TEXT_LEN_RIA", DEFAULTS.MIN_TEXT_LEN_RIA);
-    const MIN_TEXT_LEN_EURONEWS = numEnv(
-      "MIN_TEXT_LEN_EURONEWS",
-      DEFAULTS.MIN_TEXT_LEN_EURONEWS
-    );
+    const MIN_TEXT_LEN_EURONEWS = numEnv("MIN_TEXT_LEN_EURONEWS", DEFAULTS.MIN_TEXT_LEN_EURONEWS);
 
     const MAX_FETCH_ATTEMPTS = numEnv("MAX_FETCH_ATTEMPTS", DEFAULTS.MAX_FETCH_ATTEMPTS);
     const DEFAULT_BLOCKED_403_QUARANTINE_DAYS = numEnv(
@@ -405,7 +399,7 @@ export async function POST(req: Request) {
       const mode = String(it?.content_fetch_mode || "html");
       const qDays = Number(it?.blocked_403_quarantine_days || DEFAULT_BLOCKED_403_QUARANTINE_DAYS);
 
-      // attempts: если RPC не возвращает — считаем 0 (как в твоём скрипте)
+      // attempts: если RPC не возвращает — считаем 0 (как было)
       const attempts = Number(it?.content_fetch_attempts || 0);
 
       if (mode === "disabled") continue;
@@ -432,8 +426,8 @@ export async function POST(req: Request) {
             source_id === "ria"
               ? normalizeRia(raw, url)
               : source_id === "euronews"
-              ? normalizeEuronews(raw, url)
-              : normalizeGeneric(raw, url);
+                ? normalizeEuronews(raw, url)
+                : normalizeGeneric(raw, url);
 
           content_text = clampText(content_text, MAX_TEXT_LEN);
 
@@ -441,8 +435,8 @@ export async function POST(req: Request) {
             source_id === "ria"
               ? MIN_TEXT_LEN_RIA
               : source_id === "euronews"
-              ? MIN_TEXT_LEN_EURONEWS
-              : MIN_TEXT_LEN;
+                ? MIN_TEXT_LEN_EURONEWS
+                : MIN_TEXT_LEN;
 
           if (!content_text || content_text.length < minLen) {
             await setStatus(
@@ -450,24 +444,38 @@ export async function POST(req: Request) {
               "skipped_too_short",
               "",
               "",
-              `RSS-only: content too short/empty (raw_len=${raw.length}, cleaned_len=${
-                (content_text || "").length
-              }, min_len=${minLen})`,
+              `RSS-only: content too short/empty (raw_len=${raw.length}, cleaned_len=${(content_text || "").length}, min_len=${minLen})`,
               200,
-              null
+              null,
+              "rss_only",
+              null,
+              raw.length,
+              (content_text || "").length
             );
             results["skipped_too_short_rss_only"] = (results["skipped_too_short_rss_only"] ?? 0) + 1;
             processed++;
             continue;
           }
 
-          await setStatus(id, "ok", "", content_text, "", 200, null);
+          await setStatus(
+            id,
+            "ok",
+            "",
+            content_text,
+            "",
+            200,
+            null,
+            "rss_only",
+            null,
+            raw.length,
+            (content_text || "").length
+          );
           results["ok_rss_only"] = (results["ok_rss_only"] ?? 0) + 1;
           processed++;
           continue;
         } catch (e: any) {
           const msg = e?.message ? e.message : String(e);
-          await setStatus(id, "error", "", "", `rss_only failed: ${msg}`, null, null);
+          await setStatus(id, "error", "", "", `rss_only failed: ${msg}`, null, null, "rss_only");
           results["error_rss_only"] = (results["error_rss_only"] ?? 0) + 1;
           processed++;
           continue;
@@ -478,12 +486,14 @@ export async function POST(req: Request) {
       try {
         const html = await fetchHtml(url);
 
+        let extractorUsed = "readability";
         let { content_html, content_text_raw } = extractReadable(html, url);
 
         if (source_id === "ria" && (!content_text_raw || content_text_raw.trim().length < 200)) {
           const fb = extractFromJsonLdArticleBody(html, url);
           if (fb.content_text_raw && fb.content_text_raw.length > (content_text_raw || "").length) {
             content_text_raw = fb.content_text_raw;
+            extractorUsed = "jsonld_articleBody";
           }
         }
 
@@ -491,8 +501,8 @@ export async function POST(req: Request) {
           source_id === "ria"
             ? normalizeRia(content_text_raw, url)
             : source_id === "euronews"
-            ? normalizeEuronews(content_text_raw, url)
-            : normalizeGeneric(content_text_raw, url);
+              ? normalizeEuronews(content_text_raw, url)
+              : normalizeGeneric(content_text_raw, url);
 
         content_text = clampText(content_text, MAX_TEXT_LEN);
 
@@ -500,27 +510,44 @@ export async function POST(req: Request) {
           source_id === "ria"
             ? MIN_TEXT_LEN_RIA
             : source_id === "euronews"
-            ? MIN_TEXT_LEN_EURONEWS
-            : MIN_TEXT_LEN;
+              ? MIN_TEXT_LEN_EURONEWS
+              : MIN_TEXT_LEN;
 
-        if (!content_text || content_text.length < minLen) {
+        const rawLen = (content_text_raw || "").length;
+        const cleanLen = (content_text || "").length;
+
+        if (!content_text || cleanLen < minLen) {
           await setStatus(
             id,
             "skipped_too_short",
             "",
             "",
-            `Extracted content too short/empty (raw_len=${(content_text_raw || "").length}, cleaned_len=${
-              (content_text || "").length
-            }, min_len=${minLen})`,
+            `Extracted content too short/empty (raw_len=${rawLen}, cleaned_len=${cleanLen}, min_len=${minLen})`,
             200,
-            null
+            null,
+            extractorUsed,
+            null,
+            rawLen,
+            cleanLen
           );
           results["skipped_too_short"] = (results["skipped_too_short"] ?? 0) + 1;
           processed++;
           continue;
         }
 
-        await setStatus(id, "ok", content_html || "", content_text, "", 200, null);
+        await setStatus(
+          id,
+          "ok",
+          content_html || "",
+          content_text,
+          "",
+          200,
+          null,
+          extractorUsed,
+          null,
+          rawLen,
+          cleanLen
+        );
         results["ok"] = (results["ok"] ?? 0) + 1;
         processed++;
       } catch (e: any) {
@@ -529,7 +556,7 @@ export async function POST(req: Request) {
 
         if (httpStatus === 403 || msg.includes("HTTP 403")) {
           const nextIso = addSecondsToNow(qDays * 24 * 3600);
-          await setStatus(id, "blocked_403", "", "", "HTTP 403", 403, nextIso);
+          await setStatus(id, "blocked_403", "", "", "HTTP 403", 403, nextIso, "http_get");
           results["blocked_403"] = (results["blocked_403"] ?? 0) + 1;
           processed++;
           continue;
@@ -551,14 +578,15 @@ export async function POST(req: Request) {
             "",
             msg,
             httpStatus,
-            finalStatus === "retry_later" ? nextIso : null
+            finalStatus === "retry_later" ? nextIso : null,
+            "http_get"
           );
           results[finalStatus] = (results[finalStatus] ?? 0) + 1;
           processed++;
           continue;
         }
 
-        await setStatus(id, "error", "", "", msg, httpStatus, null);
+        await setStatus(id, "error", "", "", msg, httpStatus, null, "http_get");
         results["error"] = (results["error"] ?? 0) + 1;
         processed++;
       }
