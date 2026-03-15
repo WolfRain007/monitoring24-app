@@ -1,0 +1,28 @@
+name: Events Assign Cron
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  assign-events:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call events assign endpoint
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.EVENTS_ASSIGN_URL }}
+          method: "POST"
+          customHeaders: |
+            {
+              "x-ingest-secret": "${{ secrets.INGEST_SECRET }}",
+              "Content-Type": "application/json"
+            }
+          data: |
+            {
+              "batch_size": 200,
+              "max_loops": 10,
+              "stop_when_unchanged_loops": 2
+            }
