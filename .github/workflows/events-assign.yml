@@ -1,28 +1,27 @@
 name: Events Assign Cron
 
 on:
+  workflow_dispatch: {}
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch:
 
 jobs:
-  assign-events:
+  assign:
     runs-on: ubuntu-latest
-
     steps:
       - name: Call events assign endpoint
-        uses: fjogeleit/http-request-action@v1
-        with:
-          url: ${{ secrets.EVENTS_ASSIGN_URL }}
-          method: "POST"
-          customHeaders: |
-            {
-              "x-ingest-secret": "${{ secrets.INGEST_SECRET }}",
-              "Content-Type": "application/json"
-            }
-          data: |
-            {
-              "batch_size": 200,
-              "max_loops": 10,
-              "stop_when_unchanged_loops": 2
-            }
+        shell: bash
+        env:
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          EVENTS_ASSIGN_URL: ${{ secrets.EVENTS_ASSIGN_URL }}
+        run: |
+          set -euo pipefail
+          echo "Calling events assign endpoint..."
+
+          curl -sS -v -X POST \
+            -H "User-Agent: GitHubActions/1.0" \
+            -H "Content-Type: application/json" \
+            -H "x-ingest-secret: ${INGEST_SECRET}" \
+            -d '{"batch_size":200,"max_loops":10,"stop_when_unchanged_loops":2}' \
+            "${EVENTS_ASSIGN_URL}" \
+            | python3 -m json.tool
