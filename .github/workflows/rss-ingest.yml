@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "*/15 * * * *"
 
+concurrency:
+  group: rss-ingest-cron
+  cancel-in-progress: false
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
@@ -17,10 +21,14 @@ jobs:
           set -euo pipefail
           echo "Calling RSS ingest endpoint..."
 
-          curl -sS -v -X POST \
+          RESPONSE_FILE=$(mktemp)
+
+          HTTP_CODE=$(curl -sS --fail-with-body -o "$RESPONSE_FILE" -w "%{http_code}" -X POST \
             -H "User-Agent: GitHubActions/1.0" \
             -H "Content-Type: application/json" \
             -H "x-ingest-secret: ${INGEST_SECRET}" \
             -d '{}' \
-            https://monitoring24-app-xjs.vercel.app/api/rss/ingest \
-            | python3 -m json.tool
+            https://monitoring24-app-xjs.vercel.app/api/rss/ingest)
+
+          echo "HTTP $HTTP_CODE"
+          cat "$RESPONSE_FILE" | python3 -m json.tool
