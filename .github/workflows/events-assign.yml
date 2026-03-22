@@ -22,6 +22,6 @@ jobs:
             -H "User-Agent: GitHubActions/1.0" \
             -H "Content-Type: application/json" \
             -H "x-ingest-secret: ${INGEST_SECRET}" \
-            -d '{"batch_size":50,"max_loops":3,"stop_when_unchanged_loops":1}' \
+            -d '{"batch_size":50,"max_loops":5,"stop_when_unchanged_loops":2,"geo_backfill_limit":200,"max_age":"30 days"}' \
             "${EVENTS_ASSIGN_URL}" \
             | python3 -m json.tool
