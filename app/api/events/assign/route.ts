@@ -1,17 +1,26 @@
-// app/api/events/assign/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceKey) {
-  throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+  throw new Error(
+    "Missing env: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) / SUPABASE_SERVICE_ROLE_KEY"
+  );
 }
 
 const supabase = createClient(supabaseUrl, serviceKey);
+
+function clampInt(value: unknown, fallback: number, min: number, max: number) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
 
 export async function POST(req: Request) {
   try {
@@ -22,10 +31,15 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
 
-    const batchSize = Number(body?.batch_size ?? 50);
-    const maxLoops = Number(body?.max_loops ?? 5);
-    const stopWhenUnchangedLoops = Number(body?.stop_when_unchanged_loops ?? 2);
-    const geoBackfillLimit = Number(body?.geo_backfill_limit ?? 200);
+    const batchSize = clampInt(body?.batch_size, 200, 1, 500);
+    const maxLoops = clampInt(body?.max_loops, 10, 1, 50);
+    const stopWhenUnchangedLoops = clampInt(
+      body?.stop_when_unchanged_loops,
+      3,
+      1,
+      10
+    );
+    const geoBackfillLimit = clampInt(body?.geo_backfill_limit, 200, 0, 1000);
     const maxAge = String(body?.max_age ?? "30 days");
 
     const { data: geoData, error: geoError } = await supabase.rpc(
