@@ -12,6 +12,71 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+export async function GET(req: Request) {
+  try {
+    const supabase = getSupabase();
+    const { searchParams } = new URL(req.url);
+
+    const q = searchParams.get("q")?.trim() || null;
+    const status = searchParams.get("status")?.trim() || null;
+    const eventFamilyKey = searchParams.get("event_family_key")?.trim() || null;
+    const dateFrom = searchParams.get("date_from")?.trim() || null;
+    const dateTo = searchParams.get("date_to")?.trim() || null;
+    const sortBy = searchParams.get("sort_by")?.trim() || "last_seen_desc";
+
+    const limit = Math.min(
+      Math.max(Number(searchParams.get("limit") || 20), 1),
+      100
+    );
+    const offset = Math.max(Number(searchParams.get("offset") || 0), 0);
+
+    const { data, error } = await supabase.rpc("api_events_list", {
+      p_q: q,
+      p_status: status,
+      p_event_family_key: eventFamilyKey,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
+      p_sort_by: sortBy,
+      p_limit: limit,
+      p_offset: offset,
+    });
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    const rows = data || [];
+    const total = rows.length > 0 ? Number(rows[0].total_count || 0) : 0;
+
+    const items = rows.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      started_at: row.started_at,
+      last_seen_at: row.last_seen_at,
+      event_family_key: row.event_family_key,
+      city_id: row.city_id,
+      country_code: row.country_code,
+      real_news_count: row.real_news_count,
+    }));
+
+    return NextResponse.json({
+      items,
+      total,
+      limit,
+      offset,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = getSupabase();
