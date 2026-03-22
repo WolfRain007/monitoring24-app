@@ -1,3 +1,4 @@
+// app/api/events/assign/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -12,12 +13,6 @@ if (!supabaseUrl || !serviceKey) {
 
 const supabase = createClient(supabaseUrl, serviceKey);
 
-function toPositiveInt(value: unknown, fallback: number) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return fallback;
-  return Math.floor(n);
-}
-
 export async function POST(req: Request) {
   try {
     const secret = req.headers.get("x-ingest-secret");
@@ -25,53 +20,53 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
-    }
+    const body = await req.json().catch(() => ({}));
 
-    const batch_size = toPositiveInt(body.batch_size, 200);
-    const max_loops = toPositiveInt(body.max_loops, 10);
-    const stop_when_unchanged_loops = toPositiveInt(
-      body.stop_when_unchanged_loops,
-      2
+    const batchSize = Number(body?.batch_size ?? 50);
+    const maxLoops = Number(body?.max_loops ?? 5);
+    const stopWhenUnchangedLoops = Number(body?.stop_when_unchanged_loops ?? 2);
+    const geoBackfillLimit = Number(body?.geo_backfill_limit ?? 200);
+    const maxAge = String(body?.max_age ?? "30 days");
+
+    const { data: geoData, error: geoError } = await supabase.rpc(
+      "backfill_news_item_geo_v1",
+      {
+        p_limit: geoBackfillLimit,
+        p_max_age: maxAge,
+      }
     );
 
-    const { data, error } = await supabase.rpc("assign_events_until_done", {
-      p_batch_size: batch_size,
-      p_max_loops: max_loops,
-      p_stop_when_unchanged_loops: stop_when_unchanged_loops,
-    });
-
-    if (error) {
-      console.error("assign_events_until_done rpc failed:", error.message);
-
-      return NextResponse.json(
-        {
-          ok: false,
-          error: error.message,
-          params: {
-            batch_size,
-            max_loops,
-            stop_when_unchanged_loops,
-          },
-        },
-        { status: 500 }
-      );
+    if (geoError) {
+      throw new Error(`RPC backfill_news_item_geo_v1 error: ${geoError.message}`);
     }
 
-    const result = Array.isArray(data) ? (data[0] ?? null) : (data ?? null);
+    const geo_backfilled = Number(geoData ?? 0);
+
+    const { data: assignData, error: assignError } = await supabase.rpc(
+      "assign_events_until_done_v8",
+      {
+        p_batch_size: batchSize,
+        p_max_loops: maxLoops,
+        p_stop_when_unchanged_loops: stopWhenUnchangedLoops,
+        p_max_age: maxAge,
+      }
+    );
+
+    if (assignError) {
+      throw new Error(`RPC assign_events_until_done_v8 error: ${assignError.message}`);
+    }
 
     return NextResponse.json({
       ok: true,
       params: {
-        batch_size,
-        max_loops,
-        stop_when_unchanged_loops,
+        batch_size: batchSize,
+        max_loops: maxLoops,
+        stop_when_unchanged_loops: stopWhenUnchangedLoops,
+        geo_backfill_limit: geoBackfillLimit,
+        max_age: maxAge,
       },
-      result,
+      geo_backfilled,
+      assign_result: assignData,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
