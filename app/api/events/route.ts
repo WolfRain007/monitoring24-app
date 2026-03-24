@@ -5,6 +5,9 @@ function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  console.log("SUPABASE_URL exists:", !!url);
+  console.log("SUPABASE_SERVICE_ROLE_KEY exists:", !!key);
+
   if (!url || !key) {
     throw new Error("Supabase env variables are missing");
   }
@@ -42,14 +45,26 @@ export async function GET(req: Request) {
     });
 
     if (error) {
+      console.error("Supabase RPC error:", error);
+
       return NextResponse.json(
-        { error: error.message },
+        {
+          error: error.message,
+          details: error,
+        },
         { status: 500 }
       );
     }
 
-    const rows = data || [];
-    const total = rows.length > 0 ? Number(rows[0].total_count || 0) : 0;
+    console.log("api_events_list typeof data:", typeof data);
+    console.log("api_events_list isArray:", Array.isArray(data));
+    console.log(
+      "api_events_list sample:",
+      JSON.stringify(data)?.slice(0, 1000)
+    );
+
+    const rows = Array.isArray(data) ? data : [];
+    const total = rows.length > 0 ? Number(rows[0]?.total_count || 0) : 0;
 
     const items = rows.map((row: any) => ({
       id: row.id,
@@ -70,8 +85,13 @@ export async function GET(req: Request) {
       offset,
     });
   } catch (err: any) {
+    console.error("GET /api/events failed:", err);
+
     return NextResponse.json(
-      { error: err.message || "Internal server error" },
+      {
+        error: err?.message || "Internal server error",
+        stack: err?.stack || null,
+      },
       { status: 500 }
     );
   }
@@ -89,18 +109,24 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
+      console.error("POST /api/events insert failed:", error);
+
       return NextResponse.json(
-        { error: error.message },
+        { error: error.message, details: error },
         { status: 500 }
       );
     }
 
     return NextResponse.json(data, { status: 200 });
   } catch (err: any) {
+    console.error("POST /api/events failed:", err);
+
     return NextResponse.json(
-      { error: err.message || "Internal server error" },
+      {
+        error: err?.message || "Internal server error",
+        stack: err?.stack || null,
+      },
       { status: 500 }
     );
   }
 }
-
