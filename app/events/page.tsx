@@ -493,4 +493,70 @@ export default async function EventsPage({
                 {response.total}
               </div>
               <div className="mt-1 text-sm text-slate-500">
-                Используйте фильтры и
+                Используйте фильтры и пагинацию для навигации по событиям.
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {hasPrev ? (
+                <Link
+                  href={prevHref}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  ← Назад
+                </Link>
+              ) : (
+                <span className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-5 text-sm font-medium text-slate-400">
+                  ← Назад
+                </span>
+              )}
+
+              {hasNext ? (
+                <Link
+                  href={nextHref}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  Вперёд →
+                </Link>
+              ) : (
+                <span className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-200 px-5 text-sm font-medium text-slate-500">
+                  Вперёд →
+                </span>
+              )}
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  } catch {
+    return (
+      <main className="min-h-screen bg-[linear-gradient(to_bottom,_#f8fafc,_#eef2ff)] text-slate-900">
+        <div className="mx-auto max-w-4xl px-6 py-16 lg:px-8">
+          <div className="rounded-[32px] border border-amber-200 bg-white p-8 shadow-[0_20px_70px_rgba(15,23,42,0.08)]">
+            <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-700">
+              Monitoring24
+            </div>
+
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+              События временно недоступны
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
+              Не удалось загрузить ленту событий. Обновите страницу через
+              несколько секунд или повторите попытку позже.
+            </p>
+
+            <div className="mt-6">
+              <Link
+                href="/events"
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+              >
+                Обновить страницу
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+}
