@@ -5,9 +5,6 @@ function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  console.log("SUPABASE_URL exists:", !!url);
-  console.log("SUPABASE_SERVICE_ROLE_KEY exists:", !!key);
-
   if (!url || !key) {
     throw new Error("Supabase env variables are missing");
   }
@@ -56,13 +53,6 @@ export async function GET(req: Request) {
       );
     }
 
-    console.log("api_events_list typeof data:", typeof data);
-    console.log("api_events_list isArray:", Array.isArray(data));
-    console.log(
-      "api_events_list sample:",
-      JSON.stringify(data)?.slice(0, 1000)
-    );
-
     const rows = Array.isArray(data) ? data : [];
     const total = rows.length > 0 ? Number(rows[0]?.total_count || 0) : 0;
 
@@ -90,7 +80,6 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         error: err?.message || "Internal server error",
-        stack: err?.stack || null,
       },
       { status: 500 }
     );
@@ -112,7 +101,10 @@ export async function POST(req: Request) {
       console.error("POST /api/events insert failed:", error);
 
       return NextResponse.json(
-        { error: error.message, details: error },
+        {
+          error: error.message,
+          details: error,
+        },
         { status: 500 }
       );
     }
@@ -124,7 +116,6 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: err?.message || "Internal server error",
-        stack: err?.stack || null,
       },
       { status: 500 }
     );
