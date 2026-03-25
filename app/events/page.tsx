@@ -251,4 +251,39 @@ export default async function EventsPage() {
 
                           <div className="flex items-start justify-between gap-3">
                             <dt className="text-slate-500">Тип события</dt>
-                            <dd className="max-w-[150px] text
+                            <dd className="max-w-[150px] text-right font-medium capitalize text-slate-900">
+                              {formatEventFamily(event.event_family_key)}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  } catch {
+    return (
+      <main className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="mx-auto max-w-4xl px-6 py-16 lg:px-8">
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+              Monitoring24
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+              События временно недоступны
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-700 sm:text-base">
+              Не удалось загрузить ленту событий. Попробуйте обновить страницу
+              через несколько секунд.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+}
