@@ -30,22 +30,34 @@ export async function GET(req: Request) {
     let query = supabase
       .from("news_items")
       .select(
-        "id, title, source_name, published_at, language, country_code, url, event_id, city_id, content_text",
+        `
+          id,
+          title,
+          source,
+          published_at,
+          lang,
+          country_code,
+          url,
+          event_id,
+          city_id,
+          content_text
+        `,
         { count: "exact" }
       )
-      .order("published_at", { ascending: false })
+      .order("published_at", { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
     if (q) {
-      query = query.or(`title.ilike.%${q}%,content_text.ilike.%${q}%`);
+      const safeQ = q.replace(/,/g, " ");
+      query = query.or(`title.ilike.%${safeQ}%,content_text.ilike.%${safeQ}%`);
     }
 
     if (language) {
-      query = query.eq("language", language);
+      query = query.eq("lang", language);
     }
 
     if (sourceName) {
-      query = query.ilike("source_name", `%${sourceName}%`);
+      query = query.ilike("source", `%${sourceName}%`);
     }
 
     const { data, error, count } = await query;
@@ -62,7 +74,20 @@ export async function GET(req: Request) {
       );
     }
 
-    const items = Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
+
+    const items = rows.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      source_name: row.source,
+      published_at: row.published_at,
+      language: row.lang,
+      country_code: row.country_code,
+      url: row.url,
+      event_id: row.event_id,
+      city_id: row.city_id,
+      content_text: row.content_text,
+    }));
 
     return NextResponse.json({
       items,
