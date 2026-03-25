@@ -155,7 +155,7 @@ function FilterSelect({
     <select
       name={name}
       defaultValue={value || ""}
-      className="h-12 w-full rounded-2xl border border-slate-200/80 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
     >
       <option value="">Все</option>
       {options.map((option) => (
@@ -175,30 +175,13 @@ function StatCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-3xl border border-white/70 bg-white/80 px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </div>
       <div className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
         {value}
       </div>
-    </div>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3">
-      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-base font-semibold text-slate-950">{value}</div>
     </div>
   );
 }
@@ -247,354 +230,299 @@ export default async function EventsPage({
       offset: nextOffset,
     })}`;
 
-    const resetHref = "/events";
-
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.10),_transparent_26%),linear-gradient(180deg,_#f8fbff_0%,_#eef4ff_48%,_#f8fafc_100%)] text-slate-900">
-        <div className="mx-auto max-w-[1440px] px-6 py-8 lg:px-10 lg:py-10">
-          <section className="relative overflow-hidden rounded-[36px] border border-white/70 bg-white/75 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.08),_transparent_30%)]" />
-
-            <div className="relative border-b border-slate-200/70 px-6 py-8 sm:px-8 lg:px-10">
-              <div className="grid gap-8 xl:grid-cols-[1.35fr_0.85fr] xl:items-end">
-                <div className="max-w-4xl">
-                  <div className="inline-flex items-center rounded-full border border-sky-200/80 bg-sky-50/90 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">
-                    Monitoring24 · Events Intelligence
-                  </div>
-
-                  <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                    Профессиональный
-                    <span className="bg-gradient-to-r from-slate-950 via-sky-800 to-indigo-800 bg-clip-text text-transparent">
-                      {" "}
-                      мониторинг событий
-                    </span>
-                  </h1>
-
-                  <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
-                    Единая аналитическая витрина для мониторинга ключевых
-                    событий, оценки динамики, работы с фильтрами и быстрого
-                    перехода к детальному анализу источников и последствий.
-                  </p>
+      <div className="px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section className="rounded-[32px] border border-white/70 bg-white/75 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+          <div className="border-b border-slate-200/70 px-6 py-7 sm:px-8">
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">
+                  Event Intelligence
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
-                  <StatCard label="Всего событий" value={response.total} />
-                  <StatCard label="На странице" value={events.length} />
-                  <StatCard
-                    label="Диапазон"
-                    value={formatRange(response.total, offset, events.length)}
-                  />
-                  <StatCard label="Лимит" value={response.limit} />
-                </div>
-              </div>
-            </div>
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                  События и оперативная аналитика
+                </h1>
 
-            <div className="relative px-6 py-6 sm:px-8 lg:px-10">
-              <form className="rounded-[28px] border border-slate-200/70 bg-white/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      Фильтры и навигация
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Настрой параметры выборки для быстрого анализа ленты.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-12">
-                  <div className="lg:col-span-5">
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Поиск по названию
-                    </label>
-                    <input
-                      type="text"
-                      name="q"
-                      defaultValue={q}
-                      placeholder="Например: Иран, аэропорт, снегопад..."
-                      className="h-12 w-full rounded-2xl border border-slate-200/80 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-3">
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Статус
-                    </label>
-                    <FilterSelect
-                      name="status"
-                      value={status}
-                      options={[
-                        { value: "active", label: "Активно" },
-                        { value: "monitoring", label: "Мониторинг" },
-                        { value: "resolved", label: "Завершено" },
-                      ]}
-                    />
-                  </div>
-
-                  <div className="lg:col-span-3">
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Тип события
-                    </label>
-                    <FilterSelect
-                      name="event_family_key"
-                      value={eventFamilyKey}
-                      options={Object.entries(EVENT_FAMILY_LABELS).map(
-                        ([value, label]) => ({
-                          value,
-                          label,
-                        })
-                      )}
-                    />
-                  </div>
-
-                  <div className="lg:col-span-1">
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Лимит
-                    </label>
-                    <input
-                      type="number"
-                      name="limit"
-                      min={1}
-                      max={50}
-                      defaultValue={limit}
-                      className="h-12 w-full rounded-2xl border border-slate-200/80 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
-                  </div>
-                </div>
-
-                <input type="hidden" name="offset" value="0" />
-
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <button
-                    type="submit"
-                    className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-950 px-6 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.16)] transition hover:bg-slate-800"
-                  >
-                    Применить фильтры
-                  </button>
-
-                  <Link
-                    href={resetHref}
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                  >
-                    Сбросить
-                  </Link>
-                </div>
-              </form>
-            </div>
-          </section>
-
-          <section className="mt-8 space-y-6">
-            {events.length === 0 ? (
-              <div className="rounded-[32px] border border-dashed border-slate-300 bg-white/80 p-12 text-center shadow-sm backdrop-blur">
-                <h2 className="text-2xl font-semibold text-slate-950">
-                  События не найдены
-                </h2>
-                <p className="mt-3 text-sm text-slate-600">
-                  Попробуйте изменить параметры фильтрации или сбросить текущие
-                  ограничения выборки.
+                <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
+                  Единая рабочая область для мониторинга и анализа событий с
+                  фильтрацией, навигацией и доступом к ключевым показателям.
                 </p>
               </div>
-            ) : (
-              events.map((event) => (
-                <article
-                  key={event.id}
-                  className="group relative overflow-hidden rounded-[32px] border border-white/70 bg-white/85 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_72px_rgba(15,23,42,0.12)]"
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatCard label="Всего событий" value={response.total} />
+                <StatCard label="На странице" value={events.length} />
+                <StatCard
+                  label="Диапазон"
+                  value={formatRange(response.total, offset, events.length)}
+                />
+                <StatCard label="Лимит" value={response.limit} />
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-6 sm:px-8">
+            <form className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-5">
+              <div className="grid gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-5">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Поиск по названию
+                  </label>
+                  <input
+                    type="text"
+                    name="q"
+                    defaultValue={q}
+                    placeholder="Например: Иран, аэропорт, снегопад..."
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  />
+                </div>
+
+                <div className="lg:col-span-3">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Статус
+                  </label>
+                  <FilterSelect
+                    name="status"
+                    value={status}
+                    options={[
+                      { value: "active", label: "Активно" },
+                      { value: "monitoring", label: "Мониторинг" },
+                      { value: "resolved", label: "Завершено" },
+                    ]}
+                  />
+                </div>
+
+                <div className="lg:col-span-3">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Тип события
+                  </label>
+                  <FilterSelect
+                    name="event_family_key"
+                    value={eventFamilyKey}
+                    options={Object.entries(EVENT_FAMILY_LABELS).map(
+                      ([value, label]) => ({
+                        value,
+                        label,
+                      })
+                    )}
+                  />
+                </div>
+
+                <div className="lg:col-span-1">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Лимит
+                  </label>
+                  <input
+                    type="number"
+                    name="limit"
+                    min={1}
+                    max={50}
+                    defaultValue={limit}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  />
+                </div>
+              </div>
+
+              <input type="hidden" name="offset" value="0" />
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="submit"
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-950 px-6 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.15)] transition hover:bg-slate-800"
                 >
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent" />
+                  Применить фильтры
+                </button>
 
-                  <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-7 lg:py-7">
-                    <div className="min-w-0">
-                      <div className="mb-4 flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClasses(
-                            event.status
-                          )}`}
-                        >
-                          {getStatusLabel(event.status)}
-                        </span>
+                <Link
+                  href="/events"
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  Сбросить
+                </Link>
+              </div>
+            </form>
+          </div>
+        </section>
 
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                          {getEventFamilyLabel(event.event_family_key)}
-                        </span>
+        <section className="mt-8 space-y-5">
+          {events.map((event) => (
+            <article
+              key={event.id}
+              className="overflow-hidden rounded-[30px] border border-white/70 bg-white/85 shadow-[0_16px_50px_rgba(15,23,42,0.08)] backdrop-blur"
+            >
+              <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="min-w-0">
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                        event.status
+                      )}`}
+                    >
+                      {getStatusLabel(event.status)}
+                    </span>
 
-                        {event.country_code && (
-                          <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                            {event.country_code}
-                          </span>
-                        )}
+                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {getEventFamilyLabel(event.event_family_key)}
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl font-semibold leading-8 tracking-tight text-slate-950 sm:text-2xl">
+                    {event.title}
+                  </h2>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                        Статус
                       </div>
-
-                      <h2 className="max-w-4xl text-[22px] font-semibold leading-8 tracking-tight text-slate-950 sm:text-2xl">
-                        {event.title}
-                      </h2>
-
-                      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricTile
-                          label="Статус"
-                          value={getStatusLabel(event.status)}
-                        />
-                        <MetricTile
-                          label="Начало"
-                          value={formatDate(event.started_at)}
-                        />
-                        <MetricTile
-                          label="Последняя активность"
-                          value={formatDate(event.last_seen_at)}
-                        />
-                        <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-indigo-50 px-4 py-3">
-                          <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                            Связанных новостей
-                          </div>
-                          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-                            {event.real_news_count}
-                          </div>
-                        </div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {getStatusLabel(event.status)}
                       </div>
                     </div>
 
-                    <aside className="w-full">
-                      <div className="h-full rounded-[28px] border border-slate-200/80 bg-gradient-to-b from-slate-50 to-white p-5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Технические данные
-                          </div>
-                          <div className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            Event
-                          </div>
-                        </div>
-
-                        <dl className="mt-5 space-y-4 text-sm">
-                          <div>
-                            <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                              ID события
-                            </dt>
-                            <dd className="break-all font-medium leading-6 text-slate-900">
-                              {event.id}
-                            </dd>
-                          </div>
-
-                          {event.city_id && (
-                            <div>
-                              <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                                City ID
-                              </dt>
-                              <dd className="break-all font-medium leading-6 text-slate-900">
-                                {event.city_id}
-                              </dd>
-                            </div>
-                          )}
-
-                          <div>
-                            <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                              Тип события
-                            </dt>
-                            <dd className="font-medium text-slate-900">
-                              {getEventFamilyLabel(event.event_family_key)}
-                            </dd>
-                          </div>
-
-                          {event.country_code && (
-                            <div>
-                              <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                                Страна
-                              </dt>
-                              <dd className="font-medium text-slate-900">
-                                {event.country_code}
-                              </dd>
-                            </div>
-                          )}
-
-                          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                              Класс события
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-slate-950">
-                              Operational Monitoring
-                            </div>
-                          </div>
-                        </dl>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                        Начало
                       </div>
-                    </aside>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatDate(event.started_at)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                        Последняя активность
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatDate(event.last_seen_at)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 px-4 py-3">
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                        Связанных новостей
+                      </div>
+                      <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                        {event.real_news_count}
+                      </div>
+                    </div>
                   </div>
-                </article>
-              ))
-            )}
-          </section>
-
-          <section className="mt-8 rounded-[32px] border border-white/70 bg-white/85 px-6 py-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="text-lg font-semibold text-slate-950">
-                  Показано {formatRange(response.total, offset, events.length)}{" "}
-                  из {response.total}
                 </div>
-                <p className="mt-1 text-sm text-slate-500">
-                  Используйте фильтры и пагинацию для детального просмотра
-                  полной выборки событий.
-                </p>
-              </div>
 
-              <div className="flex items-center gap-3">
-                {hasPrev ? (
-                  <Link
-                    href={prevHref}
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                  >
-                    ← Назад
-                  </Link>
-                ) : (
-                  <span className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-6 text-sm font-semibold text-slate-400">
-                    ← Назад
-                  </span>
-                )}
+                <aside>
+                  <div className="rounded-[28px] border border-slate-200 bg-slate-50/90 p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Технические данные
+                    </div>
 
-                {hasNext ? (
-                  <Link
-                    href={nextHref}
-                    className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-950 px-6 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.16)] transition hover:bg-slate-800"
-                  >
-                    Вперёд →
-                  </Link>
-                ) : (
-                  <span className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-200 px-6 text-sm font-semibold text-slate-500">
-                    Вперёд →
-                  </span>
-                )}
+                    <dl className="mt-4 space-y-4 text-sm">
+                      <div>
+                        <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                          ID события
+                        </dt>
+                        <dd className="break-all font-medium text-slate-900">
+                          {event.id}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                          Тип события
+                        </dt>
+                        <dd className="font-medium text-slate-900">
+                          {getEventFamilyLabel(event.event_family_key)}
+                        </dd>
+                      </div>
+
+                      {event.country_code && (
+                        <div>
+                          <dt className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                            Страна
+                          </dt>
+                          <dd className="font-medium text-slate-900">
+                            {event.country_code}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                </aside>
               </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="mt-8 rounded-[30px] border border-white/70 bg-white/85 px-6 py-5 shadow-[0_16px_50px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-lg font-semibold text-slate-950">
+                Показано {formatRange(response.total, offset, events.length)} из{" "}
+                {response.total}
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Используйте пагинацию для просмотра полной ленты событий.
+              </p>
             </div>
-          </section>
-        </div>
-      </main>
+
+            <div className="flex items-center gap-3">
+              {hasPrev ? (
+                <Link
+                  href={prevHref}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  ← Назад
+                </Link>
+              ) : (
+                <span className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-6 text-sm font-semibold text-slate-400">
+                  ← Назад
+                </span>
+              )}
+
+              {hasNext ? (
+                <Link
+                  href={nextHref}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-950 px-6 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.15)] transition hover:bg-slate-800"
+                >
+                  Вперёд →
+                </Link>
+              ) : (
+                <span className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-200 px-6 text-sm font-semibold text-slate-500">
+                  Вперёд →
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
     );
   } catch {
     return (
-      <main className="min-h-screen bg-[linear-gradient(180deg,_#f8fbff_0%,_#eef4ff_48%,_#f8fafc_100%)] text-slate-900">
-        <div className="mx-auto max-w-4xl px-6 py-16 lg:px-8">
-          <div className="rounded-[36px] border border-white/70 bg-white/90 p-8 shadow-[0_30px_90px_rgba(15,23,42,0.10)]">
-            <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-700">
-              Monitoring24
-            </div>
+      <div className="px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="rounded-[32px] border border-amber-200 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-700">
+            Monitoring24
+          </div>
 
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              События временно недоступны
-            </h1>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+            События временно недоступны
+          </h1>
 
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-              Не удалось загрузить текущую ленту событий. Повторите попытку
-              через несколько секунд или вернитесь позже.
-            </p>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+            Не удалось загрузить ленту событий. Попробуйте обновить страницу
+            через несколько секунд.
+          </p>
 
-            <div className="mt-6">
-              <Link
-                href="/events"
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-950 px-6 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.16)] transition hover:bg-slate-800"
-              >
-                Обновить страницу
-              </Link>
-            </div>
+          <div className="mt-6">
+            <Link
+              href="/events"
+              className="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-950 px-6 text-sm font-semibold text-white"
+            >
+              Обновить страницу
+            </Link>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 }
