@@ -4,7 +4,7 @@ import AppShell from "@/components/app-shell";
 
 export const metadata: Metadata = {
   title: "Monitoring24",
-  description: "Global event monitoring and intelligence platform",
+  description: "Event-first intelligence and risk analytics platform",
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className="min-h-screen bg-[#eef3fb] text-slate-900 antialiased">
+      <body className="min-h-screen bg-[#eef4fb] text-slate-900 antialiased">
         <AppShell>{children}</AppShell>
       </body>
     </html>
