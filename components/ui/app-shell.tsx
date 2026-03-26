@@ -1,8 +1,5 @@
-"use client";
-
 import { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 type AppShellProps = {
   children: ReactNode;
@@ -23,14 +20,7 @@ const navItems = [
   { href: "/billing", label: "Billing" },
 ];
 
-function isActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 export default function AppShell({ children }: AppShellProps) {
-  const pathname = usePathname() || "/";
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(251,191,36,0.10),_transparent_20%),radial-gradient(circle_at_bottom_center,_rgba(168,85,247,0.12),_transparent_28%),linear-gradient(180deg,_#f7fbff_0%,_#eef4fb_48%,_#edf2f7_100%)] text-slate-900">
       <div className="flex min-h-screen">
@@ -49,24 +39,15 @@ export default function AppShell({ children }: AppShellProps) {
 
           <nav className="flex-1 overflow-y-auto px-4 py-5">
             <div className="space-y-1">
-              {navItems.map((item) => {
-                const active = isActive(pathname, item.href);
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={[
-                      "flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition",
-                      active
-                        ? "bg-white/10 text-white"
-                        : "text-slate-300 hover:bg-white/5 hover:text-white",
-                    ].join(" ")}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </nav>
 
