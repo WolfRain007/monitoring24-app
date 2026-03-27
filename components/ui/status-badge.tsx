@@ -1,6 +1,11 @@
 import { cn } from "@/lib/utils";
 
-type StatusBadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
+export type StatusBadgeTone =
+  | "neutral"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info";
 
 type StatusBadgeProps = {
   label: string;
