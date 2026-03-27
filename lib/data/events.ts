@@ -40,7 +40,7 @@ export async function getEvents() {
         confidence_score
       `)
       .order("last_seen_at", { ascending: false, nullsFirst: false })
-      .limit(25);
+      .limit(24);
 
     if (error) {
       console.error("getEvents error:", error);
