@@ -40,7 +40,9 @@ function MetricPill({
       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
         {label}
       </div>
-      <div className={`mt-1 inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${accentMap[accent]}`}>
+      <div
+        className={`mt-1 inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${accentMap[accent]}`}
+      >
         {value}
       </div>
     </div>
@@ -57,9 +59,9 @@ function ScoreChip({
   tone?: "sky" | "violet" | "emerald";
 }) {
   const toneMap = {
-    sky: "bg-sky-50 text-sky-700 border-sky-200",
-    violet: "bg-violet-50 text-violet-700 border-violet-200",
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    sky: "border-sky-200 bg-sky-50 text-sky-700",
+    violet: "border-violet-200 bg-violet-50 text-violet-700",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
   };
 
   return (
@@ -84,6 +86,7 @@ export default async function EventsPage() {
       <div className="space-y-8">
         <section className="relative overflow-hidden rounded-[32px] border border-white/60 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.24),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(196,181,253,0.22),_transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,250,252,0.82))] p-6 shadow-[0_24px_80px_-28px_rgba(15,23,42,0.22)] backdrop-blur sm:p-8">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.24),transparent_18%,transparent_82%,rgba(255,255,255,0.18))]" />
+
           <div className="relative">
             <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-3xl">
@@ -158,20 +161,18 @@ export default async function EventsPage() {
           </section>
         ) : (
           <section className="space-y-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  Event registry
-                </div>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-                  Последние события
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
-                  Вместо сухой таблицы — карточки сигналов в логике intelligence
-                  workspace. Дальше сюда можно добавить фильтры, карту, severity
-                  и drill-down.
-                </p>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                Event registry
               </div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+                Последние события
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                Карточная витрина в логике intelligence workspace. На следующем
+                шаге добавим фильтры, состояние пайплайна и переход в карточку
+                события.
+              </p>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
