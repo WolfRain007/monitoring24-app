@@ -1,10 +1,12 @@
 import { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type SectionHeaderProps = {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
+  className?: string;
 };
 
 export function SectionHeader({
@@ -12,22 +14,29 @@ export function SectionHeader({
   title,
   description,
   action,
+  className,
 }: SectionHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
+    <div
+      className={cn(
+        "flex flex-col gap-4 border-b border-slate-200/80 px-6 py-5 sm:px-8",
+        "md:flex-row md:items-start md:justify-between",
+        className,
+      )}
+    >
+      <div className="space-y-2">
         {eyebrow ? (
-          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700/80">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">
             {eyebrow}
           </div>
         ) : null}
 
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
           {title}
         </h2>
 
         {description ? (
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="max-w-3xl text-sm leading-7 text-slate-600 sm:text-[15px]">
             {description}
           </p>
         ) : null}
