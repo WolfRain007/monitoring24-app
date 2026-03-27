@@ -159,3 +159,10 @@ export default async function NewsPage() {
                   </DataTableCell>
                 </DataTableRow>
               ))}
+            </DataTable>
+          )}
+        </div>
+      </Panel>
+    </AppShell>
+  );
+}
