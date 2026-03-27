@@ -1,43 +1,20 @@
 import { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type PanelProps = {
   children: ReactNode;
   className?: string;
-  strong?: boolean;
-  dark?: boolean;
 };
 
-export function Panel({
-  children,
-  className = "",
-  strong = false,
-  dark = false,
-}: PanelProps) {
-  if (dark) {
-    return (
-      <div
-        className={[
-          "rounded-[28px] border border-white/10 bg-slate-950/70 backdrop-blur-xl",
-          "shadow-[0_24px_80px_rgba(15,23,42,0.18)]",
-          className,
-        ].join(" ")}
-      >
-        {children}
-      </div>
-    );
-  }
-
+export function Panel({ children, className }: PanelProps) {
   return (
-    <div
-      className={[
-        "rounded-[28px] border backdrop-blur-xl",
-        strong
-          ? "border-white/70 bg-white/90 shadow-[0_18px_60px_rgba(148,163,184,0.18)]"
-          : "border-white/60 bg-white/75 shadow-[0_14px_50px_rgba(148,163,184,0.16)]",
+    <section
+      className={cn(
+        "rounded-3xl border border-slate-200/80 bg-white/95 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.18)] backdrop-blur",
         className,
-      ].join(" ")}
+      )}
     >
       {children}
-    </div>
+    </section>
   );
 }
