@@ -1,15 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
   label: string;
   href: string;
-  active?: boolean;
   badge?: string;
 };
 
 const primaryNav: NavItem[] = [
-  { label: "Обзор", href: "/", active: true },
+  { label: "Обзор", href: "/" },
   { label: "События", href: "/events", badge: "core" },
   { label: "Новости", href: "/news" },
   { label: "Карта", href: "/map" },
@@ -22,13 +24,13 @@ const secondaryNav: NavItem[] = [
   { label: "Настройки", href: "/settings" },
 ];
 
-function NavLink({ item }: { item: NavItem }) {
+function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
       href={item.href}
       className={cn(
         "flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
-        item.active
+        active
           ? "bg-slate-900 text-white shadow-sm"
           : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
       )}
@@ -39,7 +41,7 @@ function NavLink({ item }: { item: NavItem }) {
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
-            item.active
+            active
               ? "bg-white/15 text-white"
               : "bg-slate-200 text-slate-600",
           )}
@@ -52,6 +54,8 @@ function NavLink({ item }: { item: NavItem }) {
 }
 
 export function AppSidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="hidden w-full max-w-[280px] shrink-0 xl:block">
       <div className="sticky top-6 space-y-6 rounded-[28px] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_60px_-24px_rgba(15,23,42,0.16)] backdrop-blur">
@@ -73,7 +77,11 @@ export function AppSidebar() {
             Основное
           </div>
           {primaryNav.map((item) => (
-            <NavLink key={item.label} item={item} />
+            <NavLink
+              key={item.label}
+              item={item}
+              active={pathname === item.href}
+            />
           ))}
         </nav>
 
@@ -82,7 +90,11 @@ export function AppSidebar() {
             Управление
           </div>
           {secondaryNav.map((item) => (
-            <NavLink key={item.label} item={item} />
+            <NavLink
+              key={item.label}
+              item={item}
+              active={pathname === item.href}
+            />
           ))}
         </nav>
 
