@@ -1,55 +1,139 @@
+import { PageShell } from "@/components/layout/page-shell";
+import { FilterChip } from "@/components/ui/filter-chip";
+import { MetricCard } from "@/components/ui/metric-card";
+import { Panel } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">
-          Monitoring24 · What matters now
+    <PageShell>
+      <Panel className="overflow-hidden">
+        <SectionHeader
+          eyebrow="Monitoring24 · What matters now"
+          title="Аналитическая платформа мониторинга событий и их последствий"
+          description="Monitoring24 агрегирует данные из проверенных источников, связывает публикации в события и помогает видеть, как происходящее влияет на экономику, инфраструктуру, перемещения, общество, путешествия, supply chains и жизненно важные сферы."
+          action={<StatusBadge label="System online" tone="success" />}
+        />
+
+        <div className="grid gap-4 px-6 pb-6 pt-2 sm:px-8 lg:grid-cols-4">
+          <MetricCard
+            label="Архитектура"
+            value="RSS-first"
+            hint="Фокус на надёжных RSS-источниках и дальнейшей event-агрегации."
+          />
+          <MetricCard
+            label="Частота обновления"
+            value="до 5 мин"
+            hint="Целевой SLA обновления витрин, ленты и аналитических блоков."
+          />
+          <MetricCard
+            label="Интерфейс"
+            value="RU / EN"
+            hint="Поддержка двуязычного сценария для команды и клиентов."
+          />
+          <MetricCard
+            label="Формат данных"
+            value="Event-driven"
+            hint="Модель, где одно событие агрегирует множество связанных публикаций."
+          />
         </div>
+      </Panel>
 
-        <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-          Аналитическая панель глобального мониторинга событий
-        </h1>
+      <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
+        <Panel className="overflow-hidden">
+          <SectionHeader
+            eyebrow="Situation overview"
+            title="Глобальная ситуация по основным направлениям"
+            description="Платформа должна помогать быстро понять, где растут риски, где усиливается информационная плотность и какие темы требуют внимания аналитика."
+          />
 
-        <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-          Monitoring24 превращает поток публикаций из проверенных источников
-          в события, сигналы и аналитические выводы, которые помогают понимать
-          риски, последствия и точки возможностей.
-        </p>
+          <div className="space-y-4 px-6 pb-6 sm:px-8">
+            <div className="flex flex-wrap gap-2">
+              <FilterChip label="Все события" active />
+              <FilterChip label="Геополитика" />
+              <FilterChip label="Экономика" />
+              <FilterChip label="Инфраструктура" />
+              <FilterChip label="Миграция" />
+              <FilterChip label="Путешествия" />
+              <FilterChip label="Логистика" />
+            </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="text-sm text-slate-500">Статус платформы</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">Online</div>
-            <p className="mt-2 text-sm text-slate-600">
-              RSS ingest, event workspace и аналитический слой доступны.
-            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Наибольшая плотность сигналов
+                  </h3>
+                  <StatusBadge label="High attention" tone="warning" />
+                </div>
+                <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                  <li>• Города и регионы с ростом числа связанных публикаций</li>
+                  <li>• Темы с повышенной вероятностью вторичных последствий</li>
+                  <li>• Кластеры, где требуется ручная аналитическая проверка</li>
+                </ul>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Приоритет платформы
+                  </h3>
+                  <StatusBadge label="Operational" tone="info" />
+                </div>
+                <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                  <li>• Быстрая привязка публикаций к событиям и городам</li>
+                  <li>• Понимание каскадного влияния на смежные сферы</li>
+                  <li>• Переход от новостей к прогнозной аналитике</li>
+                </ul>
+              </div>
+            </div>
           </div>
+        </Panel>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="text-sm text-slate-500">Источники</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">RSS-first</div>
-            <p className="mt-2 text-sm text-slate-600">
-              Архитектура сфокусирована на RSS и проверенных публичных источниках.
-            </p>
-          </div>
+        <Panel className="overflow-hidden">
+          <SectionHeader
+            eyebrow="Platform focus"
+            title="Что должно быть в центре Monitoring24"
+            description="Не просто лента новостей, а рабочая система аналитика: события, взаимосвязи, влияние, карта, экспорт и отчётность."
+          />
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="text-sm text-slate-500">Обновление</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">до 5 мин</div>
-            <p className="mt-2 text-sm text-slate-600">
-              Целевая частота обновления событий и витрин платформы.
-            </p>
-          </div>
+          <div className="space-y-4 px-6 pb-6 sm:px-8">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Ключевые модули
+              </h3>
+              <div className="mt-4 grid gap-3">
+                {[
+                  "Event stream и рабочая лента публикаций",
+                  "Карта с привязкой событий к городам",
+                  "Аналитические витрины по темам и регионам",
+                  "Экспорт CSV / PDF для клиентов и внутренних отчётов",
+                  "Прогнозный слой влияния на ключевые сферы жизни",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="text-sm text-slate-500">Интерфейс</div>
-            <div className="mt-2 text-2xl font-semibold text-slate-950">RU / EN</div>
-            <p className="mt-2 text-sm text-slate-600">
-              Поддержка двуязычного сценария использования.
-            </p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Следующий фокус
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                После стабилизации UI и доменной схемы логично перейти к
+                полноценной event-витрине, фильтрам, страницам новостей и
+                защищённому кабинету пользователя.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
-    </main>
+        </Panel>
+      </div>
+    </PageShell>
   );
 }
