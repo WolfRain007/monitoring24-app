@@ -8,7 +8,10 @@ import {
 import { MetricCard } from "@/components/ui/metric-card";
 import { Panel } from "@/components/ui/panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "@/components/ui/status-badge";
 import { getEvents } from "@/lib/data/events";
 import {
   formatDateTime,
@@ -17,7 +20,7 @@ import {
   shortId,
 } from "@/lib/format";
 
-function getStatusTone(status: string | null) {
+function getStatusTone(status: string | null): StatusBadgeTone {
   if (!status) return "neutral";
   if (status === "active") return "success";
   if (status === "draft") return "warning";
@@ -101,7 +104,9 @@ export default async function EventsPage() {
               {items.map((item) => (
                 <DataTableRow key={item.id}>
                   <DataTableCell>
-                    <div className="font-medium text-slate-900">{item.title}</div>
+                    <div className="font-medium text-slate-900">
+                      {item.title}
+                    </div>
                     <div className="mt-1 font-mono text-xs text-slate-500">
                       {shortId(item.id)}
                     </div>
