@@ -18,10 +18,10 @@ jobs:
           set -euo pipefail
           echo "Calling events assign endpoint..."
 
-          curl --fail -sS --max-time 240 -X POST \
+          curl --fail -sS --max-time 120 -X POST \
             -H "User-Agent: GitHubActions/1.0" \
             -H "Content-Type: application/json" \
             -H "x-ingest-secret: ${INGEST_SECRET}" \
-            -d '{"batch_size":200,"max_loops":10,"stop_when_unchanged_loops":3,"geo_backfill_limit":200,"max_age":"30 days"}' \
+            -d '{"mode":"assign","batch_size":50,"max_loops":1,"stop_when_unchanged_loops":1,"geo_backfill_limit":0,"max_age":"7 days"}' \
             "${EVENTS_ASSIGN_URL}" \
             | python3 -m json.tool
