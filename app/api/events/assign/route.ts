@@ -69,14 +69,31 @@ export async function POST(req: Request) {
     let geoWarning: string | null = null;
     let assignData: unknown = null;
 
+    const shouldRunGeo = mode === "geo_only" || mode === "full";
     const shouldRunAssign = mode === "assign" || mode === "full";
 
-    if (mode === "geo_only" || mode === "full") {
+    if (shouldRunGeo) {
       if (geoBackfillLimit > 0) {
         geoAttempted = true;
         geoSkipped = false;
-        geoWarning =
-          "Geo backfill is temporarily disabled in production until database stabilizes";
+
+        const { data: geoData, error: geoError } = await supabase.rpc(
+          "backfill_news_item_geo_v2",
+          {
+            p_limit: geoBackfillLimit,
+            p_max_age: maxAge,
+          }
+        );
+
+        if (geoError) {
+          throw new Error(
+            `RPC backfill_news_item_geo_v2 error: ${geoError.message}`
+          );
+        }
+
+        geoBackfilled = Number(geoData ?? 0);
+      } else {
+        geoWarning = "geo_backfill_limit=0, geo stage skipped";
       }
     }
 
